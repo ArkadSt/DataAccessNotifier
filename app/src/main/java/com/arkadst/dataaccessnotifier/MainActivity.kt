@@ -1,7 +1,10 @@
 package com.arkadst.dataaccessnotifier
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.Context
+import android.content.Context.MODE_PRIVATE
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.webkit.CookieManager
@@ -15,7 +18,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -26,81 +28,49 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.arkadst.dataaccessnotifier.ui.theme.DataAccessNotifierTheme
 import androidx.core.content.edit
-import androidx.work.Constraints
-import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.WorkerParameters
-import kotlinx.coroutines.Dispatchers
+import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.Response
-import java.util.concurrent.TimeUnit
+
+private const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
+private const val SUCCESS_URL = "https://www.eesti.ee/auth/callback"
+private const val TAG = "CookieExtraction"
+private const val COOKIE_PREFS = "auth_cookies"
+private const val API_TEST_URL = "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=rahvastikuregister"
+
 
 class MainActivity : ComponentActivity() {
 
-    companion object {
-        private const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
-        private const val SUCCESS_URL = "https://www.eesti.ee/auth/callback"
-        private const val TAG = "CookieExtraction"
-        private const val COOKIE_PREFS = "auth_cookies"
-        private const val API_TEST_URL = "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=rahvastikuregister"
-        private const val JWT_EXTEND_URL = "https://www.eesti.ee/timur/jwt/extend-jwt-session"
-        private const val JWT_WORK_NAME = "jwt_extension_work"
+    private var jwtServiceIntent: Intent? = null
 
-        private fun saveCookies(context: Context, cookies: Map<String, String>) {
-            val prefs = context.getSharedPreferences(COOKIE_PREFS, MODE_PRIVATE)
-            prefs.edit {
-
-                cookies.forEach { (name, value) ->
-                    putString(name, value)
-                }
-
-            }
-            Log.d(TAG, "Saved ${cookies.size} cookies")
-        }
-
-        private suspend fun getURL(context: Context, url: String): Response {
-            return withContext(Dispatchers.IO) {
-                Log.d(TAG, "Starting API test request to: $url")
-
-                val client = okhttp3.OkHttpClient.Builder()
-                    .cookieJar(SessionManagementCookieJar(context))
-                    .build()
-
-                val request = okhttp3.Request.Builder()
-                    .url(url)
-                    .build()
-
-                val response: Response = client.newCall(request).execute()
-
-                Log.d(TAG, "API Response Code: ${response.code}")
-                Log.d(TAG, "API Response: ${response.body?.string()}")
-
-                return@withContext response
+    private fun saveCookies(context: Context, cookies: Map<String, String>) {
+        val prefs = context.getSharedPreferences(COOKIE_PREFS, MODE_PRIVATE)
+        prefs.edit {
+            cookies.forEach { (name, value) ->
+                putString(name, value)
             }
         }
-
-
-        private fun cookieStringToMap(cookieString: String): Map<String, String>{
-            val cookieMap = mutableMapOf<String, String>()
-            cookieString.split(";").forEach { cookie ->
-                val cookiePair = cookie.trim().split("=")
-                if (cookiePair.size == 2) {
-                    val cookieName = cookiePair[0].trim()
-                    val cookieValue = cookiePair[1].trim()
-                    cookieMap[cookieName] = cookieValue
-                    Log.d(TAG, "Cookie: $cookieName = $cookieValue")
-                }
-            }
-            return cookieMap
-        }
-
+        Log.d(TAG, "Saved ${cookies.size} cookies")
     }
 
+
+    private fun cookieStringToMap(cookieString: String): Map<String, String>{
+        val cookieMap = mutableMapOf<String, String>()
+        cookieString.split(";").forEach { cookie ->
+            val cookiePair = cookie.trim().split("=")
+            if (cookiePair.size == 2) {
+                val cookieName = cookiePair[0].trim()
+                val cookieValue = cookiePair[1].trim()
+                cookieMap[cookieName] = cookieValue
+                Log.d(TAG, "Cookie: $cookieName = $cookieValue")
+            }
+        }
+        return cookieMap
+    }
+
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
+//        Log.d("IsJobActive", jwtServiceIntent.toString())
         super.onCreate(savedInstanceState)
         WebView.setWebContentsDebuggingEnabled(true)
         enableEdgeToEdge()
@@ -113,9 +83,14 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun AuthScreen() {
-        var authState by remember { mutableStateOf(AuthState.LoggedOut) }
         val context = LocalContext.current
-        val scope = rememberCoroutineScope()
+        var authState by remember {
+            mutableStateOf(
+                if (isLoggedIn(context)) AuthState.LoggedIn
+                else AuthState.LoggedOut
+            )
+        }
+        //val scope = rememberCoroutineScope()
 
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             when (authState) {
@@ -130,12 +105,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 AuthState.LoggingIn -> {
+
                     AuthWebView(
                         modifier = Modifier.padding(innerPadding),
                         onAuthComplete = { cookies ->
                             saveCookies(context, cookies)
                             authState = AuthState.LoggedIn
-                            startJwtExtensionWork()
+                            startJwtExtensionService()
                             Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                         },
                         onAuthError = {
@@ -146,11 +122,28 @@ class MainActivity : ComponentActivity() {
                 }
 
                 AuthState.LoggedIn -> {
+
+                    @Suppress("DEPRECATION")
+                    LaunchedEffect(Unit) {
+                        val am = context.getSystemService(ACTIVITY_SERVICE) as ActivityManager
+                        val runningService = am.getRunningServices(Integer.MAX_VALUE)
+                            .find { it.service.className == JwtExtensionService::class.java.name }
+
+                        if (runningService != null) {
+                            Log.d(TAG, "JWT extension service is already running")
+                            jwtServiceIntent = Intent().apply {
+                                component = runningService.service
+                            }
+                        } else {
+                            startJwtExtensionService()
+                        }
+                    }
+
                     LoggedInScreen(
                         modifier = Modifier.padding(innerPadding),
                         onLogout = {
                             clearSavedCookies()
-                            stopJwtExtensionWork()
+                            stopJwtExtensionService()
                             authState = AuthState.LoggedOut
                             Toast.makeText(context, "Logged out", Toast.LENGTH_SHORT).show()
                         }
@@ -208,15 +201,15 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                            url?.let {
-                                if (it.startsWith(SUCCESS_URL)) {
-                                    extractAndReturnCookies(cookieManager, onAuthComplete, onAuthError)
-                                    return true
-                                }
-                            }
-                            return false
-                        }
+//                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+//                            url?.let {
+//                                if (it.startsWith(SUCCESS_URL)) {
+//                                    extractAndReturnCookies(cookieManager, onAuthComplete, onAuthError)
+//                                    return true
+//                                }
+//                            }
+//                            return false
+//                        }
 
                         override fun onReceivedError(
                             view: WebView?,
@@ -280,13 +273,13 @@ class MainActivity : ComponentActivity() {
                 Button(onClick = onLogout) {
                     Text(text = "Log out")
                 }
-                Button(onClick = {
-                    scope.launch {
-                        getURL(context, JWT_EXTEND_URL)
-                    }
-                }){
-                    Text(text = "Extend JWT Token")
-                }
+//                Button(onClick = {
+//                    scope.launch {
+//                        getURL(context, JWT_EXTEND_URL)
+//                    }
+//                }){
+//                    Text(text = "Extend JWT Token")
+//                }
             }
         }
     }
@@ -300,8 +293,6 @@ class MainActivity : ComponentActivity() {
     ) {
         val domains = listOf(
             "https://www.eesti.ee",
-//            "https://eesti.ee",
-//            ".eesti.ee"  // Try domain cookies
         )
 
         val allCookies = mutableMapOf<String, String>()
@@ -338,75 +329,27 @@ class MainActivity : ComponentActivity() {
         Log.d(TAG, "Cleared all cookies")
     }
 
-    private fun startJwtExtensionWork() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val jwtExtensionWork = PeriodicWorkRequestBuilder<JwtExtensionWorker>(
-            15, TimeUnit.MINUTES
-        )
-            .setConstraints(constraints)
-            .build()
-
-        WorkManager.getInstance(this)
-            .enqueueUniquePeriodicWork(
-                JWT_WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
-                jwtExtensionWork
-            )
-
-        Log.d(TAG, "JWT extension work scheduled")
-    }
-
-    private fun stopJwtExtensionWork() {
-        WorkManager.getInstance(this).cancelUniqueWork(JWT_WORK_NAME)
-        Log.d(TAG, "JWT extension work cancelled")
-    }
-
-    class JwtExtensionWorker(
-        context: Context,
-        workerParams: WorkerParameters
-    ) : CoroutineWorker(context, workerParams) {
-
-        companion object {
-            private const val TAG = "JwtExtensionWorker"
+    private fun startJwtExtensionService() {
+        if (jwtServiceIntent == null) {
+            jwtServiceIntent = Intent(this, JwtExtensionService::class.java)
         }
 
-        override suspend fun doWork(): Result {
-            return try {
-
-                getURL(applicationContext, API_TEST_URL)
-
-                val randomDelaySeconds = (0..300).random().toLong() // 0-5 minutes in seconds
-                Log.d(TAG, "Adding random delay of ${randomDelaySeconds}s before JWT extension")
-
-                kotlinx.coroutines.delay(randomDelaySeconds * 1000)
-
-                Log.d(TAG, "Starting JWT extension work")
-
-                val response = getURL(applicationContext, JWT_EXTEND_URL)
-
-                if (response.code == 200) {
-
-                    Log.d(TAG, "JWT extension successful")
-                    Result.success()
-
-                } else {
-                    Log.e(TAG, "JWT extension failed")
-                    Result.retry()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "JWT extension work failed", e)
-                Result.retry()
-            }
-        }
+        startForegroundService(jwtServiceIntent)
+        Log.d(TAG, "JWT extension service started")
     }
 
-
+    private fun stopJwtExtensionService() {
+        jwtServiceIntent?.let { intent ->
+            stopService(intent)
+            Log.d(TAG, "JWT extension service stopped")
+        }
+        jwtServiceIntent = null
+    }
 }
 
-
+private fun isLoggedIn(context: Context): Boolean {
+    return context.getSharedPreferences(COOKIE_PREFS, MODE_PRIVATE).all.isNotEmpty()
+}
 
 enum class AuthState {
     LoggedOut,
