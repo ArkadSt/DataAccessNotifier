@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.arkadst.dataaccessnotifier.ui.theme.DataAccessNotifierTheme
 import androidx.core.content.edit
+import com.arkadst.dataaccessnotifier.Utils.Companion.clearSavedCookies
 import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
 import kotlinx.coroutines.launch
 
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
 //        Log.d("IsJobActive", jwtServiceIntent.toString())
         super.onCreate(savedInstanceState)
+        LoginStateRepository.init(this)
         WebView.setWebContentsDebuggingEnabled(true)
         enableEdgeToEdge()
         setContent {
@@ -83,14 +85,16 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun AuthScreen() {
+
         val context = LocalContext.current
-        var authState by remember {
-            mutableStateOf(
-                if (isLoggedIn(context)) AuthState.LoggedIn
-                else AuthState.LoggedOut
-            )
+
+        val isLoggedIn by LoginStateRepository.isLoggedIn.collectAsState()
+        var loggingIn by remember { mutableStateOf(false) }
+        val authState = when {
+            loggingIn -> AuthState.LoggingIn
+            isLoggedIn -> AuthState.LoggedIn
+            else -> AuthState.LoggedOut
         }
-        //val scope = rememberCoroutineScope()
 
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
             when (authState) {
@@ -99,7 +103,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding),
                         onLoginClick = {
                             Toast.makeText(context, "Logging in...", Toast.LENGTH_SHORT).show()
-                            authState = AuthState.LoggingIn
+                            loggingIn = true
                         }
                     )
                 }
@@ -110,12 +114,12 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding),
                         onAuthComplete = { cookies ->
                             saveCookies(context, cookies)
-                            authState = AuthState.LoggedIn
+                            loggingIn = false
                             startJwtExtensionService()
                             Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                         },
                         onAuthError = {
-                            authState = AuthState.LoggedOut
+                            loggingIn = false
                             Toast.makeText(context, "Login failed", Toast.LENGTH_SHORT).show()
                         }
                     )
@@ -142,9 +146,8 @@ class MainActivity : ComponentActivity() {
                     LoggedInScreen(
                         modifier = Modifier.padding(innerPadding),
                         onLogout = {
-                            clearSavedCookies()
+                            clearSavedCookies(context)
                             stopJwtExtensionService()
-                            authState = AuthState.LoggedOut
                             Toast.makeText(context, "Logged out", Toast.LENGTH_SHORT).show()
                         }
                     )
@@ -200,16 +203,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-
-//                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-//                            url?.let {
-//                                if (it.startsWith(SUCCESS_URL)) {
-//                                    extractAndReturnCookies(cookieManager, onAuthComplete, onAuthError)
-//                                    return true
-//                                }
-//                            }
-//                            return false
-//                        }
 
                         override fun onReceivedError(
                             view: WebView?,
@@ -273,13 +266,6 @@ class MainActivity : ComponentActivity() {
                 Button(onClick = onLogout) {
                     Text(text = "Log out")
                 }
-//                Button(onClick = {
-//                    scope.launch {
-//                        getURL(context, JWT_EXTEND_URL)
-//                    }
-//                }){
-//                    Text(text = "Extend JWT Token")
-//                }
             }
         }
     }
@@ -317,18 +303,6 @@ class MainActivity : ComponentActivity() {
     }
 
 
-
-    private fun clearSavedCookies() {
-        getSharedPreferences(COOKIE_PREFS, MODE_PRIVATE)
-            .edit {
-                clear()
-            }
-
-        // Also clear WebView cookies
-        CookieManager.getInstance().removeAllCookies(null)
-        Log.d(TAG, "Cleared all cookies")
-    }
-
     private fun startJwtExtensionService() {
         if (jwtServiceIntent == null) {
             jwtServiceIntent = Intent(this, JwtExtensionService::class.java)
@@ -345,10 +319,6 @@ class MainActivity : ComponentActivity() {
         }
         jwtServiceIntent = null
     }
-}
-
-private fun isLoggedIn(context: Context): Boolean {
-    return context.getSharedPreferences(COOKIE_PREFS, MODE_PRIVATE).all.isNotEmpty()
 }
 
 enum class AuthState {

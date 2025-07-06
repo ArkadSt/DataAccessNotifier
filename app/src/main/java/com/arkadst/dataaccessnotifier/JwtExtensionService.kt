@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.arkadst.dataaccessnotifier.Utils.Companion.clearSavedCookies
 import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,19 +40,13 @@ class JwtExtensionService: Service() {
     private fun startJwtExtension() {
         job = CoroutineScope(Dispatchers.IO).launch {
             while (isActive) {
-//                try {
-                    //getURL(applicationContext, API_TEST_URL)
-                    //val randomDelay = (0..60).random().toLong()
-                    //delay(randomDelay * 1000)
                     val response = getURL(applicationContext, JWT_EXTEND_URL)
                     if (response.code != 200) {
                         Log.e(TAG, "JWT extension failed: ${response.code}")
+                        clearSavedCookies(applicationContext)
+                        stopSelf() // Optionally stop the service
                     }
                     delay(60 * 1000) // 60 seconds
-//                } catch (e: Exception) {
-//                    Log.e(TAG, "JWT extension failed", e)
-//                    delay(30 * 1000)
-//                }
             }
         }
     }
