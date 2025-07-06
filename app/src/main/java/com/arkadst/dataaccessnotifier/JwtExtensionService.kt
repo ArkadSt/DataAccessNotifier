@@ -47,7 +47,7 @@ class JwtExtensionService: Service() {
                     if (response.code != 200) {
                         Log.e(TAG, "JWT extension failed: ${response.code}")
                     }
-                    delay(20 * 1000) // 20 seconds
+                    delay(60 * 1000) // 60 seconds
 //                } catch (e: Exception) {
 //                    Log.e(TAG, "JWT extension failed", e)
 //                    delay(30 * 1000)
