@@ -1,25 +1,22 @@
 package com.arkadst.dataaccessnotifier
 
-// LoginStateRepository.kt
 import android.content.Context
-import android.content.SharedPreferences
-import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 object LoginStateRepository {
-    private lateinit var prefs: SharedPreferences
     private val _isLoggedIn = MutableStateFlow(false)
     val isLoggedIn: StateFlow<Boolean> get() = _isLoggedIn
 
-    private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        Log.d("LoginStateRepository", "Preference changed")
-        _isLoggedIn.value = prefs.all.isNotEmpty()
-    }
-
     fun init(context: Context) {
-        prefs = context.getSharedPreferences("auth_cookies", Context.MODE_PRIVATE)
-        _isLoggedIn.value = prefs.all.isNotEmpty()
-        prefs.registerOnSharedPreferenceChangeListener(listener)
+        CoroutineScope(Dispatchers.IO).launch {
+            context.cookieDataStore.data
+                .map { prefs -> prefs.asMap().isNotEmpty() }
+                .collect { loggedIn -> _isLoggedIn.value = loggedIn }
+        }
     }
 }

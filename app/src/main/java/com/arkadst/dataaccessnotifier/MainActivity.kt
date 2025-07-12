@@ -26,28 +26,29 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.arkadst.dataaccessnotifier.ui.theme.DataAccessNotifierTheme
-import androidx.core.content.edit
 import com.arkadst.dataaccessnotifier.Utils.Companion.clearSavedCookies
 import com.arkadst.dataaccessnotifier.Utils.Companion.fetchUserInfo
 import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
 import kotlinx.coroutines.launch
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlin.collections.forEach
 
 private const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
 private const val SUCCESS_URL = "https://www.eesti.ee/auth/callback"
 private const val TAG = "CookieExtraction"
-private const val COOKIE_PREFS = "auth_cookies"
 private const val API_TEST_URL = "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=rahvastikuregister"
-
 
 class MainActivity : ComponentActivity() {
 
     private var jwtServiceIntent: Intent? = null
 
-    private fun saveCookies(context: Context, cookies: Map<String, String>) {
-        val prefs = context.getSharedPreferences(COOKIE_PREFS, MODE_PRIVATE)
-        prefs.edit {
+    private suspend fun saveCookies(context: Context, cookies: Map<String, String>) {
+        context.cookieDataStore.edit { storedCookies ->
             cookies.forEach { (name, value) ->
-                putString(name, value)
+                storedCookies[stringPreferencesKey(name)] = value
             }
         }
         Log.d(TAG, "Saved ${cookies.size} cookies")
@@ -113,13 +114,12 @@ class MainActivity : ComponentActivity() {
                     AuthWebView(
                         modifier = Modifier.padding(innerPadding),
                         onAuthComplete = { cookies ->
-                            saveCookies(context, cookies)
-                            loggingIn = false
                             scope.launch {
+                                saveCookies(context, cookies)
                                 fetchUserInfo(context)
+                                loggingIn = false
+                                Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                             }
-                            startJwtExtensionService()
-                            Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                         },
                         onAuthError = {
                             loggingIn = false
@@ -149,7 +149,9 @@ class MainActivity : ComponentActivity() {
                     LoggedInScreen(
                         modifier = Modifier.padding(innerPadding),
                         onLogout = {
-                            clearSavedCookies(context)
+                            scope.launch {
+                                clearSavedCookies(context)
+                            }
                             stopJwtExtensionService()
                             Toast.makeText(context, "Logged out", Toast.LENGTH_SHORT).show()
                         }
@@ -204,7 +206,6 @@ class MainActivity : ComponentActivity() {
                                 if (it.startsWith(SUCCESS_URL)) {
                                     extractAndReturnCookies(cookieManager, onAuthComplete, onAuthError)
                                     Log.d(TAG, "Destroying WebView after auth complete")
-                                    finish()
                                 }
                             }
                         }
