@@ -3,7 +3,6 @@ package com.arkadst.dataaccessnotifier
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.content.Context
-import android.content.Context.MODE_PRIVATE
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -29,6 +28,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.arkadst.dataaccessnotifier.ui.theme.DataAccessNotifierTheme
 import androidx.core.content.edit
 import com.arkadst.dataaccessnotifier.Utils.Companion.clearSavedCookies
+import com.arkadst.dataaccessnotifier.Utils.Companion.fetchUserInfo
 import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
 import kotlinx.coroutines.launch
 
@@ -87,7 +87,7 @@ class MainActivity : ComponentActivity() {
     fun AuthScreen() {
 
         val context = LocalContext.current
-
+        val scope = rememberCoroutineScope()
         val isLoggedIn by LoginStateRepository.isLoggedIn.collectAsState()
         var loggingIn by remember { mutableStateOf(false) }
         val authState = when {
@@ -115,6 +115,9 @@ class MainActivity : ComponentActivity() {
                         onAuthComplete = { cookies ->
                             saveCookies(context, cookies)
                             loggingIn = false
+                            scope.launch {
+                                fetchUserInfo(context)
+                            }
                             startJwtExtensionService()
                             Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                         },
@@ -131,7 +134,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) {
                         val am = context.getSystemService(ACTIVITY_SERVICE) as ActivityManager
                         val runningService = am.getRunningServices(Integer.MAX_VALUE)
-                            .find { it.service.className == JwtExtensionService::class.java.name }
+                            .find { it.service.className == ForegroundServiceMain::class.java.name }
 
                         if (runningService != null) {
                             Log.d(TAG, "JWT extension service is already running")
@@ -200,6 +203,8 @@ class MainActivity : ComponentActivity() {
                             url?.let {
                                 if (it.startsWith(SUCCESS_URL)) {
                                     extractAndReturnCookies(cookieManager, onAuthComplete, onAuthError)
+                                    Log.d(TAG, "Destroying WebView after auth complete")
+                                    finish()
                                 }
                             }
                         }
@@ -305,7 +310,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startJwtExtensionService() {
         if (jwtServiceIntent == null) {
-            jwtServiceIntent = Intent(this, JwtExtensionService::class.java)
+            jwtServiceIntent = Intent(this, ForegroundServiceMain::class.java)
         }
 
         startForegroundService(jwtServiceIntent)

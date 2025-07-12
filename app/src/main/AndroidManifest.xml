@@ -26,7 +26,7 @@
             </intent-filter>
         </activity>
         <service
-            android:name=".JwtExtensionService"
+            android:name=".ForegroundServiceMain"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

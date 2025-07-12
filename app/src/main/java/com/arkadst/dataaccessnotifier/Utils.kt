@@ -7,6 +7,9 @@ import android.webkit.CookieManager
 import androidx.core.content.edit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json.Default.parseToJsonElement
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.jsonObject
 import okhttp3.Response
 
 class Utils {
@@ -28,7 +31,7 @@ class Utils {
                 val response: Response = client.newCall(request).execute()
 
                 Log.d(TAG, "API Response Code: ${response.code}")
-                Log.d(TAG, "API Response: ${response.body?.string()}")
+                //Log.d(TAG, "API Response: ${response.body?.string()}")
 
                 return@withContext response
             }
@@ -43,6 +46,19 @@ class Utils {
             // Also clear WebView cookies
             CookieManager.getInstance().removeAllCookies(null)
             Log.d("ClearCookies", "Cleared all cookies")
+        }
+
+        suspend fun fetchUserInfo(context: Context) {
+            val response = getURL(context, "https://www.eesti.ee/api/xroad/v2/rr/kodanik/info")
+            val body: String = response.body.string()
+            parseToJsonElement(body).let { jsonElement : JsonElement ->
+                Log.d("UserInfo", "User Info: $jsonElement")
+                jsonElement.jsonObject["personalCode"]?.let { personalCode ->
+
+                    Constants.Companion.personalCode = personalCode.toString().replace("EE", "")
+                    Log.d("UserInfo", "Personal code: ${Constants.Companion.personalCode}")
+                } ?: Log.d("UserInfo", "Personal code not found in response")
+            }
         }
     }
 }
