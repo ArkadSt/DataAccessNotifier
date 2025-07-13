@@ -21,8 +21,9 @@ class SessionManagementCookieJar(private val context: Context) : CookieJar {
     override fun loadForRequest(url: HttpUrl): List<Cookie> {
         return runBlocking {
             val prefs = context.cookieDataStore.data.first()
-            prefs.asMap().mapNotNull { (key, value) ->
-                val cookie = Cookie.parse(url, "$key=$value")
+            prefs.asMap().mapNotNull { (_, cookieString) ->
+                val cookie = Cookie.parse(url, "$cookieString")
+                Log.d(LOG, "Loaded cookie: $cookie")
                 cookie
             }
         }
@@ -32,9 +33,14 @@ class SessionManagementCookieJar(private val context: Context) : CookieJar {
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
         runBlocking {
             context.cookieDataStore.edit { prefs ->
-                cookies.forEach { cookie ->
-                    Log.d(LOG, cookie.toString())
-                    prefs[stringPreferencesKey(cookie.name)] = cookie.value
+                cookies.forEach { cookie : Cookie ->
+                    Log.d(LOG, "Received cookie: $cookie")
+                    if (cookie.expiresAt < System.currentTimeMillis()) {
+                        Log.d(LOG, "Skipping expired cookie: $cookie")
+                    } else {
+                        prefs[stringPreferencesKey(cookie.name)] = cookie.toString()
+                    }
+
                 }
             }
         }

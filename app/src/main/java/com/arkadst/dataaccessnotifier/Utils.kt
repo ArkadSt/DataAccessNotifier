@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
@@ -17,12 +19,16 @@ import okhttp3.Response
 private const val COOKIE_PREFS = "auth_cookies"
 private const val USER_INFO_PREFS = "user_info"
 private const val ACCESS_LOGS_PREFS = "access_logs"
+
+const val JWT_WORKER_NAME = "JwtExtentionWorker"
 val PERSONAL_CODE_KEY = stringPreferencesKey("personalCode")
 
 val Context.cookieDataStore: DataStore<Preferences> by preferencesDataStore(name = COOKIE_PREFS)
 val Context.userInfoDataStore : DataStore<Preferences> by preferencesDataStore(name = USER_INFO_PREFS)
 val Context.accessLogsDataStore : DataStore<Preferences> by preferencesDataStore(name = ACCESS_LOGS_PREFS)
-
+val workerConstraints = Constraints.Builder()
+    .setRequiredNetworkType(NetworkType.CONNECTED)
+    .build()
 private const val TAG = "getURL"
 class Utils {
     companion object {
@@ -36,6 +42,7 @@ class Utils {
 
                 val request = okhttp3.Request.Builder()
                     .url(url)
+                    .addHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0")
                     .build()
 
                 val response: Response = client.newCall(request).execute()
@@ -70,6 +77,8 @@ class Utils {
                 } ?: Log.d("UserInfo", "Personal code not found in response")
             }
         }
+
+
 
     }
 }

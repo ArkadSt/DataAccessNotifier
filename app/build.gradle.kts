@@ -40,6 +40,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.proto.datastore)
     implementation(libs.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)

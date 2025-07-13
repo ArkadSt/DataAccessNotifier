@@ -32,8 +32,13 @@ import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
 import kotlinx.coroutines.launch
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import kotlin.collections.forEach
 
 private const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
@@ -61,9 +66,9 @@ class MainActivity : ComponentActivity() {
             val cookiePair = cookie.trim().split("=")
             if (cookiePair.size == 2) {
                 val cookieName = cookiePair[0].trim()
-                val cookieValue = cookiePair[1].trim()
-                cookieMap[cookieName] = cookieValue
-                Log.d(TAG, "Cookie: $cookieName = $cookieValue")
+                //val cookieString = cookiePair[1].trim()
+                cookieMap[cookieName] = cookie
+                Log.d(TAG, "Cookie: $cookieName = $cookie")
             }
         }
         return cookieMap
@@ -310,20 +315,27 @@ class MainActivity : ComponentActivity() {
 
 
     private fun startJwtExtensionService() {
-        if (jwtServiceIntent == null) {
-            jwtServiceIntent = Intent(this, ForegroundServiceMain::class.java)
-        }
+        val workRequest = OneTimeWorkRequestBuilder<JwtExtentionWorker>()
+            .setInitialDelay(0, TimeUnit.SECONDS)
+            .setConstraints(workerConstraints)
+            .build()
 
-        startForegroundService(jwtServiceIntent)
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            JWT_WORKER_NAME,
+            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            workRequest
+        )
         Log.d(TAG, "JWT extension service started")
     }
 
     private fun stopJwtExtensionService() {
-        jwtServiceIntent?.let { intent ->
-            stopService(intent)
-            Log.d(TAG, "JWT extension service stopped")
-        }
-        jwtServiceIntent = null
+//        jwtServiceIntent?.let { intent ->
+//            stopService(intent)
+//            Log.d(TAG, "JWT extension service stopped")
+//        }
+//        jwtServiceIntent = null
+        WorkManager.getInstance(this).cancelAllWork()
+        Log.d(TAG, "Cancelled all work")
     }
 }
 
