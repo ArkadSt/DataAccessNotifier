@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.work.Constraints
 import androidx.work.NetworkType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import kotlinx.serialization.json.JsonElement
@@ -34,27 +35,35 @@ class Utils {
     companion object {
         suspend fun getURL(context: Context, url: String): Response {
             return withContext(Dispatchers.IO) {
-                Log.d(TAG, "Starting API test request to: $url")
+                try {
+                    Log.d(TAG, "Starting API test request to: $url")
 
-                val client = okhttp3.OkHttpClient.Builder()
-                    .cookieJar(SessionManagementCookieJar(context))
-                    .build()
+                    val client = okhttp3.OkHttpClient.Builder()
+                        .cookieJar(SessionManagementCookieJar(context))
+                        .build()
 
-                val request = okhttp3.Request.Builder()
-                    .url(url)
-                    .addHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0")
-                    .build()
+                    val request = okhttp3.Request.Builder()
+                        .url(url)
+                        .addHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0")
+                        .build()
 
-                val response: Response = client.newCall(request).execute()
+                    val response: Response = client.newCall(request).execute()
 
-                Log.d(TAG, "API Response Code: ${response.code}")
-                //Log.d(TAG, "API Response: ${response.body?.string()}")
+                    Log.d(TAG, "API Response Code: ${response.code}")
+                    //Log.d(TAG, "API Response: ${response.body?.string()}")
 
-                return@withContext response
+                    return@withContext response
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Error during API request: ${ex.message}")
+                    delay(1000)
+                    return@withContext getURL(context, url)
+                }
+
             }
         }
 
          suspend fun clearSavedCookies(context: Context) {
+             Log.d("ClearCookies", "Clearing saved cookies")
              context.cookieDataStore.edit { prefs ->
                  prefs.clear()
              }

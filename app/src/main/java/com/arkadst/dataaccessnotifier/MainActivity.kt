@@ -2,8 +2,10 @@ package com.arkadst.dataaccessnotifier
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.webkit.CookieManager
@@ -32,23 +34,13 @@ import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
 import kotlinx.coroutines.launch
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.OutOfQuotaPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import java.util.concurrent.TimeUnit
 import kotlin.collections.forEach
 
 private const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
 private const val SUCCESS_URL = "https://www.eesti.ee/auth/callback"
 private const val TAG = "CookieExtraction"
 private const val API_TEST_URL = "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=rahvastikuregister"
-
 class MainActivity : ComponentActivity() {
-
-    private var jwtServiceIntent: Intent? = null
 
     private suspend fun saveCookies(context: Context, cookies: Map<String, String>) {
         context.cookieDataStore.edit { storedCookies ->
@@ -87,6 +79,31 @@ class MainActivity : ComponentActivity() {
                 AuthScreen()
             }
         }
+    }
+
+    private fun ensureAlarmScheduled() {
+        if (AlarmScheduler.isAlarmSet(this)) {
+            Log.d(TAG, "Alarm already scheduled")
+        } else {
+            AlarmScheduler.scheduleNextRefresh(this, 0L)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AlarmScheduler.requestExactAlarmPermissionIfNeeded(this)
+//        if (authState != AuthState.LoggedIn) return
+//
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+//            val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
+//            if (alarmManager.canScheduleExactAlarms()) {
+//                ensureAlarmScheduled()
+//            } else {
+//                AlarmScheduler.requestExactAlarmPermissionIfNeeded(this)
+//            }
+//        } else {
+//            ensureAlarmScheduled()
+//        }
     }
 
     @Composable
@@ -135,20 +152,8 @@ class MainActivity : ComponentActivity() {
 
                 AuthState.LoggedIn -> {
 
-                    @Suppress("DEPRECATION")
                     LaunchedEffect(Unit) {
-                        val am = context.getSystemService(ACTIVITY_SERVICE) as ActivityManager
-                        val runningService = am.getRunningServices(Integer.MAX_VALUE)
-                            .find { it.service.className == ForegroundServiceMain::class.java.name }
-
-                        if (runningService != null) {
-                            Log.d(TAG, "JWT extension service is already running")
-                            jwtServiceIntent = Intent().apply {
-                                component = runningService.service
-                            }
-                        } else {
-                            startJwtExtensionService()
-                        }
+                        ensureAlarmScheduled()
                     }
 
                     LoggedInScreen(
@@ -315,27 +320,13 @@ class MainActivity : ComponentActivity() {
 
 
     private fun startJwtExtensionService() {
-        val workRequest = OneTimeWorkRequestBuilder<JwtExtentionWorker>()
-            .setInitialDelay(0, TimeUnit.SECONDS)
-            .setConstraints(workerConstraints)
-            .build()
-
-        WorkManager.getInstance(this).enqueueUniqueWork(
-            JWT_WORKER_NAME,
-            ExistingWorkPolicy.APPEND_OR_REPLACE,
-            workRequest
-        )
-        Log.d(TAG, "JWT extension service started")
+        //AlarmScheduler.requestExactAlarmPermissionIfNeeded(this)
+        ensureAlarmScheduled()
     }
 
     private fun stopJwtExtensionService() {
-//        jwtServiceIntent?.let { intent ->
-//            stopService(intent)
-//            Log.d(TAG, "JWT extension service stopped")
-//        }
-//        jwtServiceIntent = null
-        WorkManager.getInstance(this).cancelAllWork()
-        Log.d(TAG, "Cancelled all work")
+        AlarmScheduler.cancelRefresh(this)
+        Log.d(TAG, "Alarm cancelled")
     }
 }
 
