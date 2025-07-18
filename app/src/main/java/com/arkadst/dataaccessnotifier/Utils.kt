@@ -3,12 +3,11 @@ package com.arkadst.dataaccessnotifier
 import android.content.Context
 import android.util.Log
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.IOException
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.work.Constraints
-import androidx.work.NetworkType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -21,25 +20,26 @@ private const val COOKIE_PREFS = "auth_cookies"
 private const val USER_INFO_PREFS = "user_info"
 private const val ACCESS_LOGS_PREFS = "access_logs"
 
-const val JWT_WORKER_NAME = "JwtExtentionWorker"
-val PERSONAL_CODE_KEY = stringPreferencesKey("personalCode")
+const val JWT_EXTEND_URL = "https://www.eesti.ee/timur/jwt/extend-jwt-session"
+const val DATA_TRACKER_API_URL = "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=digiregistratuur&dataSystemCodes=elamislubade_ja_toolubade_register&dataSystemCodes=kinnistusraamat&dataSystemCodes=kutseregister&dataSystemCodes=maksukohustuslaste_register&dataSystemCodes=infosusteem_polis&dataSystemCodes=politsei_taktikalise_juhtimise_andmekogu&dataSystemCodes=pollumajandusloomade_register&dataSystemCodes=pollumajandustoetuste_ja_pollumassiivide_register&dataSystemCodes=rahvastikuregister&dataSystemCodes=retseptikeskus&dataSystemCodes=sotsiaalkaitse_infosusteem&dataSystemCodes=sotsiaalteenuste_ja_toetuste_register&dataSystemCodes=tooinspektsiooni_tooelu_infosusteem&dataSystemCodes=tootuskindlustuse_andmekogu"
 
+val PERSONAL_CODE_KEY = stringPreferencesKey("personalCode")
 val Context.cookieDataStore: DataStore<Preferences> by preferencesDataStore(name = COOKIE_PREFS)
 val Context.userInfoDataStore : DataStore<Preferences> by preferencesDataStore(name = USER_INFO_PREFS)
 val Context.accessLogsDataStore : DataStore<Preferences> by preferencesDataStore(name = ACCESS_LOGS_PREFS)
-val workerConstraints = Constraints.Builder()
-    .setRequiredNetworkType(NetworkType.CONNECTED)
-    .build()
+
 private const val TAG = "getURL"
 class Utils {
     companion object {
-        suspend fun getURL(context: Context, url: String): Response {
+        suspend fun getURL(context: Context, url: String) : Pair<Int, String> {
             return withContext(Dispatchers.IO) {
                 try {
                     Log.d(TAG, "Starting API test request to: $url")
 
+                    val cookieJar = SessionManagementCookieJar(context)
                     val client = okhttp3.OkHttpClient.Builder()
-                        .cookieJar(SessionManagementCookieJar(context))
+                        .cookieJar(cookieJar)
+                        .addInterceptor(ServerErrorInterceptor())
                         .build()
 
                     val request = okhttp3.Request.Builder()
@@ -49,13 +49,15 @@ class Utils {
 
                     val response: Response = client.newCall(request).execute()
 
-                    Log.d(TAG, "API Response Code: ${response.code}")
-                    //Log.d(TAG, "API Response: ${response.body?.string()}")
+                    val returnValue = Pair(response.code, response.body.string())
+                    Log.d(TAG, "API Response Code: ${returnValue.first}")
+                    Log.d(TAG, "API Response: ${returnValue.second}")
+                    response.close()
 
-                    return@withContext response
-                } catch (ex: Exception) {
+                    return@withContext returnValue
+                } catch (ex: IOException) {
                     Log.e(TAG, "Error during API request: ${ex.message}")
-                    delay(1000)
+                    delay(10 * 1000)
                     return@withContext getURL(context, url)
                 }
 
@@ -75,7 +77,7 @@ class Utils {
 
         suspend fun fetchUserInfo(context: Context) {
             val response = getURL(context, "https://www.eesti.ee/api/xroad/v2/rr/kodanik/info")
-            val body: String = response.body.string()
+            val body: String = response.second
             Log.d("UserInfo", "Response Body: $body")
             parseToJsonElement(body).let { jsonElement: JsonElement ->
                 Log.d("UserInfo", "User Info: $jsonElement")

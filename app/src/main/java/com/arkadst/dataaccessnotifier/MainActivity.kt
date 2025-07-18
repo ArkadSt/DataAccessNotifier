@@ -1,11 +1,7 @@
 package com.arkadst.dataaccessnotifier
 
 import android.annotation.SuppressLint
-import android.app.ActivityManager
-import android.app.AlarmManager
 import android.content.Context
-import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.webkit.CookieManager
@@ -69,7 +65,6 @@ class MainActivity : ComponentActivity() {
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
-//        Log.d("IsJobActive", jwtServiceIntent.toString())
         super.onCreate(savedInstanceState)
         LoginStateRepository.init(this)
         WebView.setWebContentsDebuggingEnabled(true)
@@ -81,29 +76,9 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun ensureAlarmScheduled() {
-        if (AlarmScheduler.isAlarmSet(this)) {
-            Log.d(TAG, "Alarm already scheduled")
-        } else {
-            AlarmScheduler.scheduleNextRefresh(this, 0L)
-        }
-    }
-
     override fun onResume() {
         super.onResume()
         AlarmScheduler.requestExactAlarmPermissionIfNeeded(this)
-//        if (authState != AuthState.LoggedIn) return
-//
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-//            val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
-//            if (alarmManager.canScheduleExactAlarms()) {
-//                ensureAlarmScheduled()
-//            } else {
-//                AlarmScheduler.requestExactAlarmPermissionIfNeeded(this)
-//            }
-//        } else {
-//            ensureAlarmScheduled()
-//        }
     }
 
     @Composable
@@ -153,7 +128,7 @@ class MainActivity : ComponentActivity() {
                 AuthState.LoggedIn -> {
 
                     LaunchedEffect(Unit) {
-                        ensureAlarmScheduled()
+                        AlarmScheduler.ensureAlarmScheduled(context, 0L)
                     }
 
                     LoggedInScreen(
@@ -316,12 +291,6 @@ class MainActivity : ComponentActivity() {
         } else {
             onError()
         }
-    }
-
-
-    private fun startJwtExtensionService() {
-        //AlarmScheduler.requestExactAlarmPermissionIfNeeded(this)
-        ensureAlarmScheduled()
     }
 
     private fun stopJwtExtensionService() {

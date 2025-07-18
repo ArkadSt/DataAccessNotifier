@@ -7,14 +7,8 @@ import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.stringSetPreferencesKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-
-private const val COOKIE_PREFS = "auth_cookies"
 private const val LOG = "SessionManagementCookieJar"
 class SessionManagementCookieJar(private val context: Context) : CookieJar {
 
@@ -32,6 +26,7 @@ class SessionManagementCookieJar(private val context: Context) : CookieJar {
 
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
         runBlocking {
+            Log.d(LOG, "Saving cookies for URL: $url")
             context.cookieDataStore.edit { prefs ->
                 cookies.forEach { cookie : Cookie ->
                     Log.d(LOG, "Received cookie: $cookie")

@@ -25,8 +25,6 @@ import kotlin.text.get
 
 
 private const val CHANNEL_ID = "JwtExtensionChannel"
-private const val JWT_EXTEND_URL = "https://www.eesti.ee/timur/jwt/extend-jwt-session"
-private const val DATA_TRACKER_API_URL = "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=digiregistratuur&dataSystemCodes=elamislubade_ja_toolubade_register&dataSystemCodes=kinnistusraamat&dataSystemCodes=kutseregister&dataSystemCodes=maksukohustuslaste_register&dataSystemCodes=infosusteem_polis&dataSystemCodes=politsei_taktikalise_juhtimise_andmekogu&dataSystemCodes=pollumajandusloomade_register&dataSystemCodes=pollumajandustoetuste_ja_pollumassiivide_register&dataSystemCodes=rahvastikuregister&dataSystemCodes=retseptikeskus&dataSystemCodes=sotsiaalkaitse_infosusteem&dataSystemCodes=sotsiaalteenuste_ja_toetuste_register&dataSystemCodes=tooinspektsiooni_tooelu_infosusteem&dataSystemCodes=tootuskindlustuse_andmekogu"
 private const val NOTIFICATION_ID = 1
 private const val TAG = "ForegroundServiceMain"
 
@@ -55,20 +53,16 @@ class ForegroundServiceMain: Service() {
     }
 
     private suspend fun extendJwtSession() : Boolean {
-        val response = getURL(applicationContext, JWT_EXTEND_URL)
+        val responseCode = getURL(applicationContext, JWT_EXTEND_URL).first
 
-        when (response.code) {
+        when (responseCode) {
             200 -> {
                 Log.d(TAG, "JWT session extended successfully")
                 return true
             }
-            500 -> {
-                Log.e(TAG, "JWT extension failed: Server error. Retrying...")
-                delay(1000)
-                extendJwtSession()
-            }
             else -> {
-                Log.e(TAG, "JWT extension failed: ${response.code}")
+                Log.e(TAG, "JWT extension failed: $responseCode")
+                AlarmScheduler.cancelRefresh(applicationContext)
                 clearSavedCookies(applicationContext)
             }
         }
@@ -78,8 +72,9 @@ class ForegroundServiceMain: Service() {
     private suspend fun pollDataTracker() : Boolean {
 
             val response = getURL(applicationContext, DATA_TRACKER_API_URL)
-            if (response.code == 200) {
-                response.body.string().let { body ->
+            val statusCode = response.first
+            if (statusCode == 200) {
+                response.second.let { body ->
                     Log.d(TAG, "Data tracker response: $body")
                     val entries = parseDataTrackerResponseBody(body)
                     Log.d(TAG, "Parsed entries: $entries")
@@ -87,7 +82,7 @@ class ForegroundServiceMain: Service() {
                 }
                 return true
             } else {
-                Log.e(TAG, "Data tracker API call failed: ${response.code}")
+                Log.e(TAG, "Data tracker API call failed: $statusCode")
                 return false
             }
     }

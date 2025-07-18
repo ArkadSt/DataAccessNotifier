@@ -1,6 +1,5 @@
 package com.arkadst.dataaccessnotifier
 
-import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
@@ -8,11 +7,9 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import kotlin.or
 
 private const val TAG = "AlarmScheduler"
 object AlarmScheduler {
-    //private const val INTERVAL_MS = 5 * 60 * 1000L // 5 minutes
 
     private fun createPendingIntent(context: Context, intent: Intent) : PendingIntent {
         return PendingIntent.getBroadcast(
@@ -68,5 +65,15 @@ object AlarmScheduler {
         val pendingIntent = createPendingIntent(context, intent)
         alarmManager.cancel(pendingIntent)
         pendingIntent.cancel()
+
+    }
+
+    fun ensureAlarmScheduled(context: Context, interval: Long = 60 * 1000L) {
+        if (isAlarmSet(context)) {
+            Log.d(TAG, "Alarm already scheduled")
+        } else {
+            Log.d(TAG, "Scheduling new alarm")
+            scheduleNextRefresh(context, interval)
+        }
     }
 }
