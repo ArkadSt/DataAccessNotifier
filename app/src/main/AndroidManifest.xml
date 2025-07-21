@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
@@ -31,7 +32,7 @@
             android:name=".ForegroundServiceMain"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="shortService" />
+            android:foregroundServiceType="dataSync" />
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".BootReceiver"
             android:exported="false" >

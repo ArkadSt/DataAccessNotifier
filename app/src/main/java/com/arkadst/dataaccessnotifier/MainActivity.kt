@@ -11,6 +11,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,20 +26,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.arkadst.dataaccessnotifier.ui.theme.DataAccessNotifierTheme
-import com.arkadst.dataaccessnotifier.Utils.Companion.clearSavedCookies
-import com.arkadst.dataaccessnotifier.Utils.Companion.fetchUserInfo
-import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
+import com.arkadst.dataaccessnotifier.Utils.clearSavedCookies
+import com.arkadst.dataaccessnotifier.Utils.fetchUserInfo
+import com.arkadst.dataaccessnotifier.Utils.getURL
 import kotlinx.coroutines.launch
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.arkadst.dataaccessnotifier.NotificationManager.requestNotificationPermission
 import kotlin.collections.forEach
 
 private const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
 private const val SUCCESS_URL = "https://www.eesti.ee/auth/callback"
 private const val TAG = "CookieExtraction"
 private const val API_TEST_URL = "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=rahvastikuregister"
+
 class MainActivity : ComponentActivity() {
 
+    private lateinit var notificationPermissionLauncher: ActivityResultLauncher<String>
     private suspend fun saveCookies(context: Context, cookies: Map<String, String>) {
         context.cookieDataStore.edit { storedCookies ->
             cookies.forEach { (name, value) ->
@@ -54,7 +59,6 @@ class MainActivity : ComponentActivity() {
             val cookiePair = cookie.trim().split("=")
             if (cookiePair.size == 2) {
                 val cookieName = cookiePair[0].trim()
-                //val cookieString = cookiePair[1].trim()
                 cookieMap[cookieName] = cookie
                 Log.d(TAG, "Cookie: $cookieName = $cookie")
             }
@@ -66,6 +70,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        notificationPermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (isGranted) {
+                Log.d(TAG, "Notification permission granted")
+                Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show()
+            } else {
+                Log.d(TAG, "Notification permission denied")
+                Toast.makeText(this, "Notification permission denied. The app won't work without it.", Toast.LENGTH_SHORT).show()
+                this.finishAffinity()
+            }
+        }
+
         LoginStateRepository.init(this)
         WebView.setWebContentsDebuggingEnabled(true)
         enableEdgeToEdge()
@@ -78,7 +96,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        AlarmScheduler.requestExactAlarmPermissionIfNeeded(this)
+        if (!AlarmScheduler.requestExactAlarmPermissionIfNeeded(this)){
+            requestNotificationPermission(this, notificationPermissionLauncher)
+        }
     }
 
     @Composable

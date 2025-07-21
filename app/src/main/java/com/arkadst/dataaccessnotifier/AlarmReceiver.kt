@@ -14,6 +14,6 @@ class AlarmReceiver : BroadcastReceiver() {
         val serviceIntent = Intent(context, ForegroundServiceMain::class.java)
         ContextCompat.startForegroundService(context, serviceIntent)
 
-        AlarmScheduler.scheduleNextRefresh(context)
+
     }
 }

@@ -5,14 +5,16 @@ coreKtx = "1.16.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-lifecycleRuntimeKtx = "2.9.1"
+lifecycleRuntimeKtx = "2.9.2"
 activityCompose = "1.10.1"
-composeBom = "2025.06.01"
+composeBom = "2025.07.00"
 okhttp = "5.1.0"
 workRuntimeKtx = "2.10.2"
 kotlinxSerialization = "1.9.0"
 preferencesDataStore = "1.1.7"
 protoDataStore = "1.1.7"
+protoBuf = "4.31.1"
+protoBufGradle = "0.9.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -34,9 +36,10 @@ androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx"
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "preferencesDataStore" }
 proto-datastore = { group = "androidx.datastore", name = "datastore", version.ref = "protoDataStore" }
+protoBuf = { group = "com.google.protobuf", name = "protobuf-javalite", version.ref = "protoBuf" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-
+protobuf = { id = "com.google.protobuf", version.ref = "protoBufGradle" }

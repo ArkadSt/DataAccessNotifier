@@ -1,5 +1,6 @@
 package com.arkadst.dataaccessnotifier
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,20 +9,19 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.arkadst.dataaccessnotifier.Utils.Companion.clearSavedCookies
-import com.arkadst.dataaccessnotifier.Utils.Companion.getURL
+import com.arkadst.dataaccessnotifier.NotificationManager.showAccessLogNotification
+import com.arkadst.dataaccessnotifier.StoredAccessLogManagemer.addAccessLog
+import com.arkadst.dataaccessnotifier.StoredAccessLogManagemer.hasAccessLog
+import com.arkadst.dataaccessnotifier.Utils.getURL
+import com.arkadst.dataaccessnotifier.Utils.logOut
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
-import kotlin.text.get
 
 
 private const val CHANNEL_ID = "JwtExtensionChannel"
@@ -42,7 +42,10 @@ class ForegroundServiceMain: Service() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                extendJwtSession() && pollDataTracker()
+                if (extendJwtSession()) {
+                    pollDataTracker()
+                    AlarmScheduler.scheduleNextRefresh(applicationContext)
+                }
             } finally {
                 stopSelf()
             }
@@ -60,10 +63,13 @@ class ForegroundServiceMain: Service() {
                 Log.d(TAG, "JWT session extended successfully")
                 return true
             }
+            500 -> {
+                Log.e(TAG, "JWT extension failed: 500 Internal Server Error. Retrying in 30 seconds.")
+                AlarmScheduler.scheduleNextRefresh(applicationContext, 30 * 1000L)
+            }
             else -> {
                 Log.e(TAG, "JWT extension failed: $responseCode")
-                AlarmScheduler.cancelRefresh(applicationContext)
-                clearSavedCookies(applicationContext)
+                logOut(applicationContext)
             }
         }
         return false
@@ -87,29 +93,42 @@ class ForegroundServiceMain: Service() {
             }
     }
 
-    private suspend fun parseDataTrackerResponseBody(body: String) : Map<Int, String> {
-        val returnMap = mutableMapOf<Int, String>()
+    private suspend fun parseDataTrackerResponseBody(body: String) : List<String> {
         // Implement your parsing logic here
         parseToJsonElement(body).let { jsonElement : JsonElement ->
             jsonElement.jsonObject["findUsageResponses"]?.let { entries ->
                 if (entries is JsonArray) {
-                    entries.filterNot { entry ->
+                    return entries.filterNot { entry : JsonElement ->
                         val personalCode : String = applicationContext.userInfoDataStore.data.first().asMap()[PERSONAL_CODE_KEY]?.toString()!!
                         val receiver = entry.jsonObject["receiver"]?.toString()
                         receiver?.contains(personalCode) == true
-                    }.forEach { entry ->
-                        returnMap.put(entry.toString().hashCode(), entry.toString())
+                    }.map { entryJson : JsonElement ->
+                        entryJson.toString()
                     }
                 } else {
-                    Log.e(TAG, "Expected JsonArray but got: $entries")
+                    Log.e(TAG, "Expected JsonArray but got ${entries.javaClass}")
                 }
             }
         }
-        return returnMap
+        return emptyList()
     }
 
-    private fun handleParsedEntries(entries: Map<Int, String>) {
+    private suspend fun handleParsedEntries(entries: List<String>) {
+        var notifBody = ""
 
+        entries.forEach { entry ->
+            if (!hasAccessLog(applicationContext, entry)){
+                notifBody += entry + "\n"
+                addAccessLog(applicationContext, entry)
+            }
+        }
+
+        if (notifBody == "") {
+            Log.d(TAG, "No new entries found")
+        } else {
+            Log.d(TAG, "New entries found: ${entries.size}")
+            showAccessLogNotification(applicationContext, notifBody)
+        }
     }
 
     private fun createNotificationChannel() {
@@ -126,7 +145,7 @@ class ForegroundServiceMain: Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("JWT Extension Service")
             .setContentText("Keeping your session alive")
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .build()
     }
 

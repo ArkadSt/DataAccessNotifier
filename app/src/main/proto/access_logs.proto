@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+option java_package = "com.arkadst.dataaccessnotifier";
+option java_multiple_files = true;
+
+message AccessLogsProto {
+  repeated string logs = 1;
+}

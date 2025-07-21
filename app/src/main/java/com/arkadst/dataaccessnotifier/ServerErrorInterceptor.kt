@@ -1,12 +1,13 @@
 package com.arkadst.dataaccessnotifier
 
+import android.content.Context
 import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.Response
 
 private const val TAG = "ServerErrorInterceptor"
 
-class ServerErrorInterceptor : Interceptor {
+class ServerErrorInterceptor(context: Context) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         var response = chain.proceed(chain.request())
 
@@ -21,6 +22,8 @@ class ServerErrorInterceptor : Interceptor {
 
         if (response.code == 500) {
             Log.e(TAG, "Failed to recover from 500 error after $retryCount retries")
+        } else {
+
         }
         return response
     }

@@ -31,7 +31,7 @@ object AlarmScheduler {
         return pendingIntent != null
     }
 
-    fun requestExactAlarmPermissionIfNeeded(context: Context) {
+    fun requestExactAlarmPermissionIfNeeded(context: Context) : Boolean{
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             if (!alarmManager.canScheduleExactAlarms()) {
@@ -39,8 +39,10 @@ object AlarmScheduler {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(intent)
                 Log.d(TAG, "Alarm permission requested")
+                return true
             }
         }
+        return false
     }
     fun scheduleNextRefresh(context: Context, interval: Long = 5 * 60 * 1000L) {
         Log.d(TAG, "Scheduling next refresh in $interval ms")
@@ -65,7 +67,6 @@ object AlarmScheduler {
         val pendingIntent = createPendingIntent(context, intent)
         alarmManager.cancel(pendingIntent)
         pendingIntent.cancel()
-
     }
 
     fun ensureAlarmScheduled(context: Context, interval: Long = 60 * 1000L) {
