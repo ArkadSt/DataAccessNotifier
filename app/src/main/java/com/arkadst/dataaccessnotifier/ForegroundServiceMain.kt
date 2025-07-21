@@ -38,11 +38,11 @@ class ForegroundServiceMain: Service() {
         startForeground(NOTIFICATION_ID, createNotification())
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                if (extendJwtSession()) {
+                if (extendJwtSession(intent.getIntExtra(RETRIES_KEY, 20))) {
                     pollDataTracker()
                     AlarmScheduler.scheduleNextRefresh(applicationContext)
                 }
@@ -55,7 +55,7 @@ class ForegroundServiceMain: Service() {
         return START_NOT_STICKY
     }
 
-    private suspend fun extendJwtSession() : Boolean {
+    private suspend fun extendJwtSession(retries : Int) : Boolean {
         val responseCode = getURL(applicationContext, JWT_EXTEND_URL).first
 
         when (responseCode) {
@@ -65,7 +65,7 @@ class ForegroundServiceMain: Service() {
             }
             500 -> {
                 Log.e(TAG, "JWT extension failed: 500 Internal Server Error. Retrying in 30 seconds.")
-                AlarmScheduler.scheduleNextRefresh(applicationContext, 30 * 1000L)
+                AlarmScheduler.scheduleNextRefresh(applicationContext, 30 * 1000L, retries-1)
             }
             else -> {
                 Log.e(TAG, "JWT extension failed: $responseCode")

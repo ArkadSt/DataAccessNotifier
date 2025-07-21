@@ -44,12 +44,16 @@ object AlarmScheduler {
         }
         return false
     }
-    fun scheduleNextRefresh(context: Context, interval: Long = 5 * 60 * 1000L) {
+    fun scheduleNextRefresh(context: Context, interval: Long = 5 * 60 * 1000L, retries: Int = 20) {
+        if (retries <= 0) {
+            Log.w(TAG, "No retries left, not scheduling next refresh")
+            return
+        }
         Log.d(TAG, "Scheduling next refresh in $interval ms")
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
         val intent = Intent(context, AlarmReceiver::class.java)
-
+        intent.putExtra(RETRIES_KEY, retries)
         val triggerAt = System.currentTimeMillis() + interval
 
 

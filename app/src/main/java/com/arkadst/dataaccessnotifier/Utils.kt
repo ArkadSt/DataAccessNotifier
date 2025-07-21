@@ -19,6 +19,7 @@ import okhttp3.Response
 import com.arkadst.dataaccessnotifier.NotificationManager.showLogoutNotification
 import kotlinx.coroutines.flow.first
 
+const val RETRIES_KEY = "retries"
 private const val COOKIE_PREFS = "auth_cookies"
 private const val USER_INFO_PREFS = "user_info"
 const val JWT_EXTEND_URL = "https://www.eesti.ee/timur/jwt/extend-jwt-session"
