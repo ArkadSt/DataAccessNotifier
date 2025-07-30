@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option java_package = "com.arkadst.dataaccessnotifier";
+option java_multiple_files = true;
+
+message LogEntryProto {
+  string timestamp = 1;
+  string receiver = 2;
+  string info_system = 3;
+  string action = 4;
+  string content_hash = 5; // Hash of all fields for deduplication
+}
+
+message AccessLogsProto {
+  repeated LogEntryProto entries = 1; // Simple repeated field, deduplication handled by hash checking
+}
