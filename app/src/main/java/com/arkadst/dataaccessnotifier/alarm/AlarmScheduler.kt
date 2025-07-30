@@ -45,7 +45,7 @@ object AlarmScheduler {
         }
         return false
     }
-    fun scheduleNextRefresh(context: Context, interval: Long = 15 * 60 * 1000L, retries: Int = 20) {
+    fun scheduleNextRefresh(context: Context, interval: Long = 5 * 60 * 1000L, retries: Int = 20) {
         if (retries <= 0) {
             Log.w(TAG, "No retries left, not scheduling next refresh")
             return
