@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import com.arkadst.dataaccessnotifier.NotificationManager.showAccessLogNotification
 import com.arkadst.dataaccessnotifier.Utils.getURL
 import com.arkadst.dataaccessnotifier.Utils.isFirstUse
+import com.arkadst.dataaccessnotifier.Utils.logOut
 import com.arkadst.dataaccessnotifier.Utils.setFirstUse
 import com.arkadst.dataaccessnotifier.access_logs.StoredAccessLogManager
 import com.arkadst.dataaccessnotifier.alarm.AlarmScheduler
@@ -45,80 +46,37 @@ class ForegroundServiceMain: Service() {
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                Log.d(TAG, "Attempting JWT session extension")
-
-
-                if (extendJwtSession()) {
-                    Log.d(TAG, "JWT session extension successful")
-                    // Poll data tracker after successful JWT extension
-                    if (pollDataTracker()) {
-                        Log.d(TAG, "Data tracker poll successful")
-                    } else {
-                        Log.e(TAG, "Data tracker poll failed")
-                    }
-                    // Schedule next refresh
+                if (extendJwtSession(intent.getIntExtra(RETRIES_KEY, 20))) {
+                    pollDataTracker()
                     AlarmScheduler.scheduleNextRefresh(applicationContext)
-                } else {
-                    Log.e(TAG, "JWT session extension failed")
-                    // Let AlarmScheduler handle retries
-                    AlarmScheduler.scheduleNextRefresh(applicationContext,
-                        interval = 1 * 60 * 1000L, // 15 minutes
-                        retries = intent.getIntExtra(RETRIES_KEY, 20) - 1 // Decrement retries
-                    )
                 }
             } finally {
                 stopSelf()
             }
+
         }
+
         return START_NOT_STICKY
     }
 
-    private suspend fun extendJwtSession(): Boolean = suspendCoroutine { continuation ->
-        var webView: ReAuthWebViewHeadless? = null
-        var hasResumed = false
+    private suspend fun extendJwtSession(retries : Int) : Boolean {
+        val responseCode = getURL(applicationContext, JWT_EXTEND_URL).first
 
-        // Create handler for main thread operations
-        val mainHandler = Handler(Looper.getMainLooper())
-
-        // Run WebView creation on main thread
-        mainHandler.post {
-            // Timeout handler - runs on main thread
-            val timeoutHandler = Handler(Looper.getMainLooper())
-            val timeoutRunnable = Runnable {
-                Log.w(TAG, "WebView authentication timed out after 30 seconds")
-                webView?.cleanup()
-                // Resume with false only if not already resumed
-                if (!hasResumed) {
-                    hasResumed = true
-                    continuation.resume(false)
-                }
+        when (responseCode) {
+            200 -> {
+                Log.d(TAG, "JWT session extended successfully")
+                return true
             }
-
-            try {
-                // Schedule timeout (30 seconds)
-                timeoutHandler.postDelayed(timeoutRunnable, 30000)
-
-                // Create WebView on main thread
-                webView = ReAuthWebViewHeadless(this@ForegroundServiceMain) { success ->
-                    // Cancel timeout since we got a result
-                    timeoutHandler.removeCallbacks(timeoutRunnable)
-
-                    // Resume with the authentication result
-                    if (!hasResumed) {
-                        hasResumed = true
-                        Log.d(TAG, "WebView authentication completed: $success")
-                        continuation.resume(success)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error creating WebView", e)
-                timeoutHandler.removeCallbacks(timeoutRunnable)
-                if (!hasResumed) {
-                    hasResumed = true
-                    continuation.resume(false)
-                }
+            500 -> {
+                Log.e(TAG, "JWT extension failed: 500 Internal Server Error. Retrying in 30 seconds.")
+                AlarmScheduler.scheduleNextRefresh(applicationContext, 30 * 1000L, retries-1)
+            }
+            else -> {
+                Log.e(TAG, "JWT extension failed: $responseCode")
+                logOut(applicationContext)
             }
         }
+        return false
     }
 
     private suspend fun pollDataTracker() : Boolean {

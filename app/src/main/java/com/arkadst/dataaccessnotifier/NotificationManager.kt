@@ -52,9 +52,11 @@ object NotificationManager {
         }
         notificationManager.createNotificationChannel(channel)
 
-        // Create intent to open the app
-        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        intent?.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        // Create intent to trigger login flow
+        val intent = Intent(context, MainActivity::class.java).apply {
+            action = "TRIGGER_LOGIN"
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
 
         val pendingIntent = PendingIntent.getActivity(
             context,

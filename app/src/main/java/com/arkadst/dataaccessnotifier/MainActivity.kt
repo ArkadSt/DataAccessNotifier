@@ -30,6 +30,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.arkadst.dataaccessnotifier.NotificationManager.requestNotificationPermission
 import com.arkadst.dataaccessnotifier.Utils.logOut
 import com.arkadst.dataaccessnotifier.alarm.AlarmScheduler
+import kotlinx.coroutines.flow.map
 
 const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
 const val SUCCESS_URL = "https://www.eesti.ee/auth/callback"
@@ -104,6 +105,17 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         val isLoggedIn by LoginStateRepository.isLoggedIn.collectAsState()
         var loggingIn by remember { mutableStateOf(false) }
+
+        // Handle intent from notification to trigger login
+        LaunchedEffect(Unit) {
+            val activity = context as? MainActivity
+            if (activity?.intent?.action == "TRIGGER_LOGIN") {
+                loggingIn = true
+                // Clear the intent action to prevent re-triggering
+                activity.intent.action = null
+            }
+        }
+
         val authState = when {
             loggingIn -> AuthState.LoggingIn
             isLoggedIn -> AuthState.LoggedIn
@@ -221,13 +233,30 @@ class MainActivity : ComponentActivity() {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
 
+        val firstNameFlow = remember {
+            context.userInfoDataStore.data.map { preferences ->
+                preferences[FIRST_NAME_KEY] ?: ""
+            }
+        }
+        val firstName by firstNameFlow.collectAsState(initial = "")
+
         // Use collectAsState to automatically update when new entries are added
         val logEntries by LogEntryManager.loadLogEntriesFlow(context).collectAsState(initial = emptyList())
 
         Column(
             modifier = modifier.fillMaxSize().padding(16.dp)
         ) {
-            // Logout button at the top
+            // Welcome message with first name
+            if (firstName.isNotEmpty()) {
+                Text(
+                    text = "Welcome, $firstName!",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
+
+            // Header row with title and action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -237,51 +266,87 @@ class MainActivity : ComponentActivity() {
                     text = "Data Access Monitor",
                     style = MaterialTheme.typography.headlineSmall
                 )
-                Button(onClick = onLogout) {
-                    Text(text = "Log out")
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Test API button - smaller and moved to header
+                    // Comment out the test button since it's for testing only
+                    /*
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                getURL(context, API_TEST_URL)
+                            }
+                        }
+                    ) {
+                        Text(text = "Test", style = MaterialTheme.typography.bodySmall)
+                    }
+                    */
+
+                    Button(onClick = onLogout) {
+                        Text(text = "Log out")
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Test API button
-            Button(
-                onClick = {
-                    scope.launch {
-                        getURL(context, API_TEST_URL)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
+            // Log entries section with improved spacing
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "Test API Request")
+                Text(
+                    text = "Recent Activity",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = "${logEntries.size} entries",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Log entries section
-            Text(
-                text = "Access Log Entries (${logEntries.size})",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
             // Scrollable list of log entries
             if (logEntries.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No log entries yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "No activity yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Data access logs will appear here",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(logEntries.size) { index ->
                         LogEntryItem(logEntry = logEntries[index])
