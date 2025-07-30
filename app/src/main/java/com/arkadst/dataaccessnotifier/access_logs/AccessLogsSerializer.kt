@@ -1,7 +1,8 @@
-package com.arkadst.dataaccessnotifier
+package com.arkadst.dataaccessnotifier.access_logs
 
 import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.Serializer
+import com.arkadst.dataaccessnotifier.AccessLogsProto
 import com.google.protobuf.InvalidProtocolBufferException
 import java.io.InputStream
 import java.io.OutputStream

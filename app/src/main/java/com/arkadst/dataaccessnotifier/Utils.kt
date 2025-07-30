@@ -2,10 +2,13 @@ package com.arkadst.dataaccessnotifier
 
 import android.content.Context
 import android.util.Log
+import android.webkit.CookieManager
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.IOException
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.dataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -15,8 +18,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Response
 import com.arkadst.dataaccessnotifier.NotificationManager.showLogoutNotification
+import com.arkadst.dataaccessnotifier.Utils.setFirstUse
+import com.arkadst.dataaccessnotifier.access_logs.AccessLogsSerializer
+import com.arkadst.dataaccessnotifier.alarm.AlarmScheduler
 import kotlinx.coroutines.flow.first
 
 const val RETRIES_KEY = "retries"
@@ -27,11 +34,18 @@ const val DATA_TRACKER_API_URL =
     "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=digiregistratuur&dataSystemCodes=elamislubade_ja_toolubade_register&dataSystemCodes=kinnistusraamat&dataSystemCodes=kutseregister&dataSystemCodes=maksukohustuslaste_register&dataSystemCodes=infosusteem_polis&dataSystemCodes=politsei_taktikalise_juhtimise_andmekogu&dataSystemCodes=pollumajandusloomade_register&dataSystemCodes=pollumajandustoetuste_ja_pollumassiivide_register&dataSystemCodes=rahvastikuregister&dataSystemCodes=retseptikeskus&dataSystemCodes=sotsiaalkaitse_infosusteem&dataSystemCodes=sotsiaalteenuste_ja_toetuste_register&dataSystemCodes=tooinspektsiooni_tooelu_infosusteem&dataSystemCodes=tootuskindlustuse_andmekogu"
 
 val PERSONAL_CODE_KEY = stringPreferencesKey("personalCode")
+val FIRST_NAME_KEY = stringPreferencesKey("firstName")
+val FIRST_USE_KEY = booleanPreferencesKey("firstUse")
+val LOGGED_IN_KEY = booleanPreferencesKey("loggedIn")
 val Context.cookieDataStore: DataStore<Preferences> by preferencesDataStore(name = COOKIE_PREFS)
 val Context.userInfoDataStore: DataStore<Preferences> by preferencesDataStore(name = USER_INFO_PREFS)
 val Context.accessLogsDataStore: DataStore<AccessLogsProto> by dataStore(
     fileName = "access_logs.pb",
-    serializer = AccessLogsSerializer
+    serializer = AccessLogsSerializer,
+    corruptionHandler = ReplaceFileCorruptionHandler {
+        Log.w("DataStore", "AccessLogs proto corruption detected, resetting to default")
+        AccessLogsProto.getDefaultInstance()
+    }
 )
 
 
@@ -83,38 +97,73 @@ object Utils {
         }
     }
 
-    suspend fun clearSavedCookies(context: Context) {
+     fun clearSavedCookies(context: Context) {
         Log.d("ClearCookies", "Clearing saved cookies")
-        context.cookieDataStore.edit { prefs ->
-            prefs.clear()
-        }
+//        context.cookieDataStore.edit { prefs ->
+//            prefs.clear()
+//        }
 
-        // Also clear WebView cookies
-        // CookieManager.getInstance().removeAllCookies(null)
-        // Log.d("ClearCookies", "Cleared all cookies")
+        CookieManager.getInstance().removeAllCookies(null)
+        Log.d("ClearCookies", "Cleared all cookies")
     }
 
     suspend fun fetchUserInfo(context: Context) {
-        val response = getURL(context, "https://www.eesti.ee/api/xroad/v2/rr/kodanik/info")
-        val body: String = response.second
-        Log.d("UserInfo", "Response Body: $body")
-        parseToJsonElement(body).let { jsonElement: JsonElement ->
-            Log.d("UserInfo", "User Info: $jsonElement")
-            jsonElement.jsonObject["personalCode"]?.let {
-                context.userInfoDataStore.edit { prefs ->
-                    prefs[PERSONAL_CODE_KEY] = it.toString().replace("EE", "").replace("\"", "")
-                }
-            } ?: Log.d("UserInfo", "Personal code not found in response")
+        try {
+            val response = getURL(context, "https://www.eesti.ee/api/xroad/v2/rr/kodanik/info")
+            val body: String = response.second
+            Log.d("UserInfo", "Response Body: $body")
+
+            val jsonElement = parseToJsonElement(body)
+
+            parseAndSaveUserInfo(context, jsonElement)
+        } catch (e: Exception) {
+            Log.e("UserInfo", "Failed to fetch user info: ${e.message}", e)
         }
     }
 
+    private suspend fun parseAndSaveUserInfo(context: Context, jsonElement: JsonElement) {
+        val jsonObject = jsonElement.jsonObject
+
+        // Extract and clean data
+        val personalCode = jsonObject["personalCode"]?.jsonPrimitive?.content?.cleanJsonString()?.removePrefix("EE")
+        val firstName = jsonObject["firstName"]?.jsonPrimitive?.content?.cleanJsonString()
+
+        // Save all user info in a single DataStore edit operation
+        context.userInfoDataStore.edit { prefs ->
+            personalCode?.let {
+                prefs[PERSONAL_CODE_KEY] = it
+                Log.d("UserInfo", "Saved personal code: $it")
+            } ?: Log.w("UserInfo", "Personal code not found in response")
+
+            firstName?.let {
+                prefs[FIRST_NAME_KEY] = it
+                Log.d("UserInfo", "Saved first name: $it")
+            } ?: Log.w("UserInfo", "First name not found in response")
+        }
+    }
+
+    private fun String.cleanJsonString(): String {
+        return this.replace("\"", "").trim()
+    }
+
     suspend fun logOut(context: Context) {
+        context.userInfoDataStore.edit { prefs ->
+            prefs[LOGGED_IN_KEY] = false
+        }
         AlarmScheduler.cancelRefresh(context)
         clearSavedCookies(context)
+        LoginStateRepository.setLoggedIn(context, false)
         showLogoutNotification(context)
     }
 
-
+    suspend fun isFirstUse(context: Context): Boolean {
+        return context.userInfoDataStore.data.first()[FIRST_USE_KEY] ?: true
+    }
+    suspend fun setFirstUse(context: Context, isFirstUse: Boolean) {
+        context.userInfoDataStore.edit { prefs ->
+            prefs[FIRST_USE_KEY] = isFirstUse
+        }
+    }
 
 
 }

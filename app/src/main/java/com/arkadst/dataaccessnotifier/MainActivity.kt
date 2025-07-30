@@ -6,19 +6,15 @@ import android.os.Bundle
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,17 +22,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.arkadst.dataaccessnotifier.ui.theme.DataAccessNotifierTheme
-import com.arkadst.dataaccessnotifier.Utils.clearSavedCookies
 import com.arkadst.dataaccessnotifier.Utils.fetchUserInfo
 import com.arkadst.dataaccessnotifier.Utils.getURL
 import kotlinx.coroutines.launch
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.arkadst.dataaccessnotifier.NotificationManager.requestNotificationPermission
-import kotlin.collections.forEach
+import com.arkadst.dataaccessnotifier.Utils.logOut
+import com.arkadst.dataaccessnotifier.alarm.AlarmScheduler
 
-private const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
-private const val SUCCESS_URL = "https://www.eesti.ee/auth/callback"
+const val LOGIN_URL = "https://www.eesti.ee/timur/oauth2/authorization/govsso?callback_url=https://www.eesti.ee/auth/callback&locale=et"
+const val SUCCESS_URL = "https://www.eesti.ee/auth/callback"
 private const val TAG = "CookieExtraction"
 private const val API_TEST_URL = "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=rahvastikuregister"
 
@@ -132,9 +128,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding),
                         onAuthComplete = { cookies ->
                             scope.launch {
-                                saveCookies(context, cookies)
+                                //saveCookies(context, cookies)
                                 fetchUserInfo(context)
                                 loggingIn = false
+                                LoginStateRepository.setLoggedIn(context, true)
                                 Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                             }
                         },
@@ -155,9 +152,8 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding),
                         onLogout = {
                             scope.launch {
-                                clearSavedCookies(context)
+                                logOut(context)
                             }
-                            stopJwtExtensionService()
                             Toast.makeText(context, "Logged out", Toast.LENGTH_SHORT).show()
                         }
                     )
@@ -203,48 +199,13 @@ class MainActivity : ComponentActivity() {
                         domStorageEnabled = true
                     }
 
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-
-                            url?.let {
-                                if (it.startsWith(SUCCESS_URL)) {
-                                    extractAndReturnCookies(cookieManager, onAuthComplete, onAuthError)
-                                    Log.d(TAG, "Destroying WebView after auth complete")
-                                }
-                            }
-                        }
-
-                        override fun onReceivedError(
-                            view: WebView?,
-                            request: android.webkit.WebResourceRequest?,
-                            error: android.webkit.WebResourceError?
-                        ) {
-                            super.onReceivedError(view, request, error)
-                            error?.let {
-                                Log.e(TAG, "WebView error: ${it.description} (Code: ${it.errorCode})")
-                                // Only trigger auth error for main frame errors
-                                if (request?.isForMainFrame == true) {
-                                    onAuthError()
-                                }
-                            }
-                        }
-
-                        override fun onReceivedHttpError(
-                            view: WebView?,
-                            request: android.webkit.WebResourceRequest?,
-                            errorResponse: android.webkit.WebResourceResponse?
-                        ) {
-                            super.onReceivedHttpError(view, request, errorResponse)
-                            errorResponse?.let {
-                                Log.e(TAG, "HTTP error: ${it.statusCode} ${it.reasonPhrase}")
-                                // Only trigger auth error for main frame HTTP errors
-                                if (request?.isForMainFrame == true && it.statusCode >= 400) {
-                                    onAuthError()
-                                }
-                            }
-                        }
-                    }
+                    webViewClient = MyWebViewClient(
+                        { onSuccess, onError ->
+                            extractAndReturnCookies( onSuccess, onError)
+                        },
+                        onAuthComplete,
+                        onAuthError
+                    )
 
                     loadUrl(LOGIN_URL)
                 }
@@ -259,35 +220,128 @@ class MainActivity : ComponentActivity() {
     ) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+
+        // Use collectAsState to automatically update when new entries are added
+        val logEntries by LogEntryManager.loadLogEntriesFlow(context).collectAsState(initial = emptyList())
+
+        Column(
+            modifier = modifier.fillMaxSize().padding(16.dp)
         ) {
-            androidx.compose.foundation.layout.Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+            // Logout button at the top
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(onClick = {
+                Text(
+                    text = "Data Access Monitor",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Button(onClick = onLogout) {
+                    Text(text = "Log out")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Test API button
+            Button(
+                onClick = {
                     scope.launch {
                         getURL(context, API_TEST_URL)
                     }
-                }) {
-                    Text(text = "Test API Request")
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(text = "Test API Request")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Log entries section
+            Text(
+                text = "Access Log Entries (${logEntries.size})",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Scrollable list of log entries
+            if (logEntries.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No log entries yet",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                Button(onClick = onLogout) {
-                    Text(text = "Log out")
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(logEntries.size) { index ->
+                        LogEntryItem(logEntry = logEntries[index])
+                    }
                 }
             }
         }
     }
 
+    @Composable
+    fun LogEntryItem(logEntry: LogEntryProto) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = logEntry.infoSystem,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = LogEntryManager.formatDisplayTime(logEntry.timestamp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = logEntry.receiver,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = logEntry.action,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 
 
     private fun extractAndReturnCookies(
-        cookieManager: CookieManager,
         onSuccess: (Map<String, String>) -> Unit,
         onError: () -> Unit
     ) {
+
+        val cookieManager = CookieManager.getInstance()
+
         val domains = listOf(
             "https://www.eesti.ee",
         )
@@ -311,11 +365,6 @@ class MainActivity : ComponentActivity() {
         } else {
             onError()
         }
-    }
-
-    private fun stopJwtExtensionService() {
-        AlarmScheduler.cancelRefresh(this)
-        Log.d(TAG, "Alarm cancelled")
     }
 }
 

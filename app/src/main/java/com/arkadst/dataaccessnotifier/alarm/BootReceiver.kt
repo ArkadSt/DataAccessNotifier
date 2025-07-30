@@ -1,4 +1,4 @@
-package com.arkadst.dataaccessnotifier
+package com.arkadst.dataaccessnotifier.alarm
 
 import android.content.BroadcastReceiver
 import android.content.Context

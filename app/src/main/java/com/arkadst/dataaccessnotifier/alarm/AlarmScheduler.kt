@@ -1,4 +1,4 @@
-package com.arkadst.dataaccessnotifier
+package com.arkadst.dataaccessnotifier.alarm
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import com.arkadst.dataaccessnotifier.RETRIES_KEY
 
 private const val TAG = "AlarmScheduler"
 object AlarmScheduler {
@@ -44,7 +45,7 @@ object AlarmScheduler {
         }
         return false
     }
-    fun scheduleNextRefresh(context: Context, interval: Long = 5 * 60 * 1000L, retries: Int = 20) {
+    fun scheduleNextRefresh(context: Context, interval: Long = 15 * 60 * 1000L, retries: Int = 20) {
         if (retries <= 0) {
             Log.w(TAG, "No retries left, not scheduling next refresh")
             return

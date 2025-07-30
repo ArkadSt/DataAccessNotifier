@@ -11,7 +11,6 @@ import android.os.Build
 import androidx.activity.result.ActivityResultLauncher
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import kotlin.or
 
 object NotificationManager {
 
@@ -78,7 +77,7 @@ object NotificationManager {
         notificationManager.notify(1001, notification)
     }
 
-    fun showAccessLogNotification(context: Context, log : String) {
+    fun showAccessLogNotification(context: Context, logEntry: LogEntryProto) {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -106,17 +105,26 @@ object NotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Build notification
+        // Use LogEntryManager for formatting
+        val notificationId = logEntry.timestamp.hashCode()
+        val displayTime = LogEntryManager.formatDisplayTime(logEntry.timestamp)
+
+        // Build individual notification for this entry
         val notification = NotificationCompat.Builder(context, "access_log_channel")
-            .setContentTitle("New Data Access Detected")
-            .setContentText(log)
+            .setContentTitle("Data Access: ${logEntry.infoSystem}")
+            .setContentText("$displayTime • ${logEntry.receiver}")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(LogEntryManager.formatExpandedNotification(logEntry))
+            )
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setDefaults(NotificationCompat.DEFAULT_SOUND)
+            .setGroup("access_logs")
             .build()
 
-        notificationManager.notify(1002, notification)
+        notificationManager.notify(notificationId, notification)
     }
 }
