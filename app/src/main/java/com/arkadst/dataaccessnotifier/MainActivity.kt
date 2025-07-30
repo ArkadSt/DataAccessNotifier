@@ -105,6 +105,17 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         val isLoggedIn by LoginStateRepository.isLoggedIn.collectAsState()
         var loggingIn by remember { mutableStateOf(false) }
+
+        // Handle intent from notification to trigger login
+        LaunchedEffect(Unit) {
+            val activity = context as? MainActivity
+            if (activity?.intent?.action == "TRIGGER_LOGIN") {
+                loggingIn = true
+                // Clear the intent action to prevent re-triggering
+                activity.intent.action = null
+            }
+        }
+
         val authState = when {
             loggingIn -> AuthState.LoggingIn
             isLoggedIn -> AuthState.LoggedIn
@@ -222,7 +233,6 @@ class MainActivity : ComponentActivity() {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
 
-        // Read first name from DataStore - fixed to use remember to avoid recomposition issues
         val firstNameFlow = remember {
             context.userInfoDataStore.data.map { preferences ->
                 preferences[FIRST_NAME_KEY] ?: ""
