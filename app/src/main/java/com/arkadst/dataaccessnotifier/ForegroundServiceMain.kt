@@ -8,7 +8,6 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.arkadst.dataaccessnotifier.NotificationManager.showAccessLogNotification
 import com.arkadst.dataaccessnotifier.Utils.getURL
 import com.arkadst.dataaccessnotifier.access_logs.LogEntryManager
 import com.arkadst.dataaccessnotifier.access_logs.StoredAccessLogManager
@@ -83,9 +82,7 @@ class ForegroundServiceMain: Service() {
             if (statusCode == 200) {
                 response.second.let { body ->
                     Log.d(TAG, "Data tracker response: $body")
-                    val entries = parseDataTrackerResponseBody(body)
-                    Log.d(TAG, "Parsed entries: $entries")
-                    handleParsedEntries(entries)
+                    handleParsedEntries(parseDataTrackerResponseBody(body))
                 }
                 return true
             } else {
@@ -115,8 +112,6 @@ class ForegroundServiceMain: Service() {
 
         // Add new entries to storage
         StoredAccessLogManager.addAccessLogs(applicationContext, entries)
-
-
         UserInfoManager.setFirstUse(applicationContext, false)
 
     }

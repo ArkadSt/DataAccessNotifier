@@ -29,19 +29,11 @@ object LogEntryManager {
     fun parseLogEntry(logElement: JsonElement): LogEntryProto {
         val logEntryJson = Json.decodeFromJsonElement(serializer<LogEntryJson>(), logElement)
 
-        val hash = generateContentHash(
-            logEntryJson.logTime,
-            logEntryJson.receiver,
-            logEntryJson.infoSystemCode,
-            logEntryJson.action
-        )
-
         return LogEntryProto.newBuilder()
             .setTimestamp(logEntryJson.logTime)
             .setReceiver(logEntryJson.receiver)
             .setInfoSystem(logEntryJson.infoSystemCode)
             .setAction(logEntryJson.action)
-            .setContentHash(hash)
             .build()
     }
 
@@ -50,13 +42,6 @@ object LogEntryManager {
      */
     fun parseLogEntries(logElements: List<JsonElement>): List<LogEntryProto> {
         return logElements.map { parseLogEntry(it) }
-    }
-
-    /**
-     * Generate a content hash for deduplication
-     */
-    fun generateContentHash(timestamp: String, receiver: String, infoSystem: String, action: String): String {
-        return "$timestamp|$receiver|$infoSystem|$action"
     }
 
     /**

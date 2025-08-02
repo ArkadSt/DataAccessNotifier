@@ -8,7 +8,6 @@ message LogEntryProto {
   string receiver = 2;
   string info_system = 3;
   string action = 4;
-  string content_hash = 5; // Hash of all fields for deduplication
 }
 
 message AccessLogsProto {

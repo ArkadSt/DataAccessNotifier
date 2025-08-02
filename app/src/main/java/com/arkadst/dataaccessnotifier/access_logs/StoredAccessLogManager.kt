@@ -13,25 +13,28 @@ private const val TAG = "StoredAccessLogManager"
 
 object StoredAccessLogManager {
 
-    suspend fun addAccessLogs(context: Context, logEntries: List<LogEntryProto>) {
+    /**
+     * Adds new entries to the persistent store and returns entries which have been successfully added, i.e. where not previously persisted.
+     */
+    suspend fun addAccessLogs(context: Context, logEntries: Collection<LogEntryProto>) : Collection<LogEntryProto> {
+        val newEntries = logEntries.toMutableSet();
         context.accessLogsDataStore.updateData { currentLogs ->
-            val existingHashes = currentLogs.entriesList.map { it.contentHash }.toSet()
-            val builder = currentLogs.toBuilder()
-
-            var newEntriesCounter = 0
-
-            logEntries.forEach { logEntry ->
-                if (!existingHashes.contains(logEntry.contentHash)) {
-                    builder.addEntries(logEntry)
-                    if (!UserInfoManager.isFirstUse(context))
-                        showAccessLogNotification(context, logEntry)
-                    newEntriesCounter++
+            newEntries.removeAll(currentLogs.entriesList.toSet());
+            if (newEntries.isEmpty()) {
+                Log.d(TAG, "No new access log entries")
+                currentLogs
+            } else {
+                Log.d(TAG, "${newEntries.size} new access log entries")
+                // Notify user about new access log entries
+                if (!UserInfoManager.isFirstUse(context)) {
+                    newEntries.forEach { entryProto ->
+                        showAccessLogNotification(context, entryProto)
+                    }
                 }
+                UserInfoManager.setFirstUse(context, false)
+                currentLogs.toBuilder().addAllEntries(newEntries).build()
             }
-
-            Log.d(TAG, "New entries found: $newEntriesCounter")
-
-            builder.build()
         }
+        return newEntries
     }
 }
