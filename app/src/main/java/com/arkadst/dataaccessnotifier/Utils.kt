@@ -20,9 +20,6 @@ import java.util.concurrent.TimeUnit
 
 const val RETRIES_KEY = "retries"
 private const val COOKIE_PREFS = "auth_cookies"
-const val JWT_EXTEND_URL = "https://www.eesti.ee/timur/jwt/extend-jwt-session"
-const val DATA_TRACKER_API_URL =
-    "https://www.eesti.ee/andmejalgija/api/v1/usages?dataSystemCodes=digiregistratuur&dataSystemCodes=elamislubade_ja_toolubade_register&dataSystemCodes=kinnistusraamat&dataSystemCodes=kutseregister&dataSystemCodes=maksukohustuslaste_register&dataSystemCodes=infosusteem_polis&dataSystemCodes=politsei_taktikalise_juhtimise_andmekogu&dataSystemCodes=pollumajandusloomade_register&dataSystemCodes=pollumajandustoetuste_ja_pollumassiivide_register&dataSystemCodes=rahvastikuregister&dataSystemCodes=retseptikeskus&dataSystemCodes=sotsiaalkaitse_infosusteem&dataSystemCodes=sotsiaalteenuste_ja_toetuste_register&dataSystemCodes=tooinspektsiooni_tooelu_infosusteem&dataSystemCodes=tootuskindlustuse_andmekogu"
 
 val Context.cookieDataStore: DataStore<Preferences> by preferencesDataStore(name = COOKIE_PREFS)
 val Context.userInfoDataStore: DataStore<UserInfoProto> by dataStore(

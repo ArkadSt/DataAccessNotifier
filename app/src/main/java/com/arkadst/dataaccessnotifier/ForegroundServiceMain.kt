@@ -15,6 +15,8 @@ import com.arkadst.dataaccessnotifier.access_logs.StoredAccessLogManager
 import com.arkadst.dataaccessnotifier.user_info.UserInfoManager
 import com.arkadst.dataaccessnotifier.alarm.AlarmScheduler
 import com.arkadst.dataaccessnotifier.auth.AuthManager
+import com.arkadst.dataaccessnotifier.core.Constants.DATA_TRACKER_API_URL
+import com.arkadst.dataaccessnotifier.core.Constants.JWT_EXTEND_URL
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
