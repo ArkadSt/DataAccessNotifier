@@ -12,7 +12,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import okhttp3.Response
 import com.arkadst.dataaccessnotifier.access_logs.AccessLogsSerializer
 import com.arkadst.dataaccessnotifier.auth.SessionManagementCookieJar
 import com.arkadst.dataaccessnotifier.user_info.UserInfoSerializer

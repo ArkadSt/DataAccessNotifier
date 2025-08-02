@@ -113,31 +113,12 @@ class ForegroundServiceMain: Service() {
 
     private suspend fun handleParsedEntries(entries: List<LogEntryProto>) {
 
-        // Filter out entries that already exist using LogEntryProto objects
-        val newEntries = entries.filterNot { entry ->
-            StoredAccessLogManager.hasAccessLog(applicationContext, entry)
-        }
-
         // Add new entries to storage
-        newEntries.forEach { entry ->
-            StoredAccessLogManager.addAccessLog(applicationContext, entry)
-        }
+        StoredAccessLogManager.addAccessLogs(applicationContext, entries)
 
-        if (newEntries.isEmpty()) {
-            Log.d(TAG, "No new entries found")
-        } else {
-            Log.d(TAG, "New entries found: ${newEntries.size}")
-        }
 
-        if (UserInfoManager.isFirstUse(applicationContext)) {
-            UserInfoManager.setFirstUse(applicationContext, false)
-        } else {
-            Log.d(TAG, "Not first use, showing notifications for ${newEntries.size} new entries")
-            // Directly use LogEntryProto objects for notifications
-            newEntries.forEach { entry ->
-                showAccessLogNotification(applicationContext, entry)
-            }
-        }
+        UserInfoManager.setFirstUse(applicationContext, false)
+
     }
 
     private fun createNotificationChannel() {
