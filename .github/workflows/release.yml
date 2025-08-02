@@ -28,11 +28,20 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - name: Set up build tools version
+      run: |
+        BUILD_TOOLS_VERSION=$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)
+        echo "BUILD_TOOLS_VERSION=$BUILD_TOOLS_VERSION" >> $GITHUB_ENV
+        echo "Using build-tools version: $BUILD_TOOLS_VERSION"
+
     - name: Decode keystore
       env:
         ENCODED_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
         echo $ENCODED_KEYSTORE | base64 -d > app/release-keystore.jks
+        # Verify keystore was created and is accessible
+        ls -la app/release-keystore.jks
+        echo "Keystore created successfully"
 
     - name: Extract version from tag
       id: get_version
@@ -53,27 +62,40 @@ jobs:
         sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" app/build.gradle.kts
 
     - name: Build Release APK
-      env:
-        KEYSTORE_PATH: app/release-keystore.jks
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      run: ./gradlew assembleRelease
+      run: |
+        # Verify environment variables are set
+        echo "KEYSTORE_PATH: $KEYSTORE_PATH"
+        echo "Keystore exists: $(test -f $KEYSTORE_PATH && echo 'YES' || echo 'NO')"
+        ./gradlew assembleRelease
 
     - name: Sign APK
       env:
-        KEYSTORE_PATH: app/release-keystore.jks
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
-        # Verify the APK was signed correctly
-        $ANDROID_HOME/build-tools/*/apksigner verify app/build/outputs/apk/release/app-release.apk
+        java -jar $ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/lib/apksigner.jar sign \
+          --ks app/release-keystore.jks \
+          --ks-pass pass:$KEYSTORE_PASSWORD \
+          --ks-key-alias $KEY_ALIAS \
+          --key-pass pass:$KEY_PASSWORD \
+          --out app/build/outputs/apk/release/app-release.apk \
+          app/build/outputs/apk/release/app-release-unsigned.apk
+
+
+    - name: Verify APK signature
+      run: |
+        # Verify the final signed APK
+        java -jar $ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/lib/apksigner.jar verify app/build/outputs/apk/release/app-release.apk
 
     - name: Rename APK
       run: |
         VERSION="${{ steps.get_version.outputs.version }}"
-        mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/DataAccessNotifier-$VERSION.apk
+        # Create release directory if it doesn't exist
+        mkdir -p app/release
+        # Copy and rename the signed APK
+        cp app/build/outputs/apk/release/app-release.apk app/release/DataAccessNotifier-$VERSION.apk
+        echo "APK renamed to DataAccessNotifier-$VERSION.apk"
 
     - name: Upload APK to Release
       if: github.event_name == 'release'
@@ -82,7 +104,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ github.event.release.upload_url }}
-        asset_path: app/build/outputs/apk/release/DataAccessNotifier-${{ steps.get_version.outputs.version }}.apk
+        asset_path: app/release/DataAccessNotifier-${{ steps.get_version.outputs.version }}.apk
         asset_name: DataAccessNotifier-${{ steps.get_version.outputs.version }}.apk
         asset_content_type: application/vnd.android.package-archive
 
@@ -91,7 +113,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DataAccessNotifier-${{ steps.get_version.outputs.version }}
-        path: app/build/outputs/apk/release/DataAccessNotifier-${{ steps.get_version.outputs.version }}.apk
+        path: app/release/DataAccessNotifier-${{ steps.get_version.outputs.version }}.apk
         retention-days: 30
 
     - name: Clean up keystore
