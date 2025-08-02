@@ -1,7 +1,8 @@
-package com.arkadst.dataaccessnotifier
+package com.arkadst.dataaccessnotifier.auth
 
 import android.content.Context
 import android.util.Log
+import com.arkadst.dataaccessnotifier.userInfoDataStore
 import com.arkadst.dataaccessnotifier.user_info.UserInfoManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

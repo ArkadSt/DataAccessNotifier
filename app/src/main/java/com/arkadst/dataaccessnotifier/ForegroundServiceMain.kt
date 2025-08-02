@@ -10,10 +10,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.arkadst.dataaccessnotifier.NotificationManager.showAccessLogNotification
 import com.arkadst.dataaccessnotifier.Utils.getURL
-import com.arkadst.dataaccessnotifier.Utils.logOut
+import com.arkadst.dataaccessnotifier.access_logs.LogEntryManager
 import com.arkadst.dataaccessnotifier.access_logs.StoredAccessLogManager
 import com.arkadst.dataaccessnotifier.user_info.UserInfoManager
 import com.arkadst.dataaccessnotifier.alarm.AlarmScheduler
+import com.arkadst.dataaccessnotifier.auth.AuthManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -67,7 +68,7 @@ class ForegroundServiceMain: Service() {
             }
             else -> {
                 Log.e(TAG, "JWT extension failed: $responseCode")
-                logOut(applicationContext)
+                AuthManager.logOut(applicationContext)
             }
         }
         return false

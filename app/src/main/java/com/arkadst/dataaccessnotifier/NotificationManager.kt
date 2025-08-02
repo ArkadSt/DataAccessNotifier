@@ -11,6 +11,7 @@ import android.os.Build
 import androidx.activity.result.ActivityResultLauncher
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.arkadst.dataaccessnotifier.access_logs.LogEntryManager
 
 object NotificationManager {
 

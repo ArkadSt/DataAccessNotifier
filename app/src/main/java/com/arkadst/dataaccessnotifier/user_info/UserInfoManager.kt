@@ -9,6 +9,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import com.arkadst.dataaccessnotifier.userInfoDataStore
 import com.arkadst.dataaccessnotifier.UserInfoProto
+import com.arkadst.dataaccessnotifier.Utils.getURL
+import kotlinx.serialization.json.Json.Default.parseToJsonElement
 
 @Serializable
 data class UserInfoJson(
@@ -17,6 +19,19 @@ data class UserInfoJson(
 )
 
 object UserInfoManager {
+
+    suspend fun fetchUserInfo(context: Context) {
+        try {
+            val response = getURL(context, "https://www.eesti.ee/api/xroad/v2/rr/kodanik/info")
+            val body: String = response.second
+            Log.d("UserInfo", "Response Body: $body")
+
+            parseAndSaveUserInfo(context, parseToJsonElement(body))
+            setFirstUse(context, true)
+        } catch (e: Exception) {
+            Log.e("UserInfo", "Failed to fetch user info: ${e.message}", e)
+        }
+    }
 
     /**
      * Parse user info from JsonElement and update the proto data store

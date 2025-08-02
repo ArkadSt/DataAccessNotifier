@@ -1,6 +1,8 @@
-package com.arkadst.dataaccessnotifier
+package com.arkadst.dataaccessnotifier.access_logs
 
 import android.content.Context
+import com.arkadst.dataaccessnotifier.LogEntryProto
+import com.arkadst.dataaccessnotifier.accessLogsDataStore
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json

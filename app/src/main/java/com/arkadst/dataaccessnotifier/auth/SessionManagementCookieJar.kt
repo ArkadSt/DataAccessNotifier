@@ -1,4 +1,4 @@
-package com.arkadst.dataaccessnotifier
+package com.arkadst.dataaccessnotifier.auth
 
 import android.content.Context
 import android.util.Log
@@ -7,10 +7,6 @@ import androidx.datastore.preferences.core.Preferences
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 
 private const val LOG = "SessionManagementCookieJar"
 class SessionManagementCookieJar(private val context: Context) : CookieJar {

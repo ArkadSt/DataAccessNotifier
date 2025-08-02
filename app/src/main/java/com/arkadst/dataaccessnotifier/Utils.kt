@@ -2,7 +2,6 @@ package com.arkadst.dataaccessnotifier
 
 import android.content.Context
 import android.util.Log
-import android.webkit.CookieManager
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.IOException
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
@@ -13,13 +12,10 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import okhttp3.Response
-import com.arkadst.dataaccessnotifier.NotificationManager.showLogoutNotification
 import com.arkadst.dataaccessnotifier.access_logs.AccessLogsSerializer
+import com.arkadst.dataaccessnotifier.auth.SessionManagementCookieJar
 import com.arkadst.dataaccessnotifier.user_info.UserInfoSerializer
-import com.arkadst.dataaccessnotifier.user_info.UserInfoManager
-import com.arkadst.dataaccessnotifier.alarm.AlarmScheduler
 import java.util.concurrent.TimeUnit
 
 const val RETRIES_KEY = "retries"
@@ -94,37 +90,5 @@ object Utils {
 
         }
     }
-
-     fun clearSavedCookies(context: Context) {
-        Log.d("ClearCookies", "Clearing saved cookies")
-//        context.cookieDataStore.edit { prefs ->
-//            prefs.clear()
-//        }
-
-        CookieManager.getInstance().removeAllCookies(null)
-        Log.d("ClearCookies", "Cleared all cookies")
-    }
-
-    suspend fun fetchUserInfo(context: Context) {
-        try {
-            val response = getURL(context, "https://www.eesti.ee/api/xroad/v2/rr/kodanik/info")
-            val body: String = response.second
-            Log.d("UserInfo", "Response Body: $body")
-
-            UserInfoManager.parseAndSaveUserInfo(context, parseToJsonElement(body))
-            UserInfoManager.setFirstUse(context, true)
-        } catch (e: Exception) {
-            Log.e("UserInfo", "Failed to fetch user info: ${e.message}", e)
-        }
-    }
-
-    suspend fun logOut(context: Context) {
-        UserInfoManager.setLoggedIn(context, false)
-        AlarmScheduler.cancelRefresh(context)
-        clearSavedCookies(context)
-        LoginStateRepository.setLoggedIn(context, false)
-        showLogoutNotification(context)
-    }
-
 
 }

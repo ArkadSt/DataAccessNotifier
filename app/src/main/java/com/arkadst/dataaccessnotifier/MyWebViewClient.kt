@@ -1,14 +1,13 @@
 package com.arkadst.dataaccessnotifier
 
 import android.util.Log
-import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.arkadst.dataaccessnotifier.core.Constants.SUCCESS_URL
 
-private val TAG = "MyWebViewClient"
+private const val TAG = "MyWebViewClient"
 class MyWebViewClient(
-    private val extractAndReturnCookies: ((Map<String, String>) -> Unit, () -> Unit) -> Unit,
-    private val onAuthComplete: (Map<String, String>) -> Unit,
+    private val onAuthComplete: () -> Unit,
     private val onAuthError: () -> Unit
 ) : WebViewClient(){
 
@@ -17,7 +16,7 @@ class MyWebViewClient(
 
         url?.let {
             if (it.startsWith(SUCCESS_URL)) {
-                extractAndReturnCookies(onAuthComplete, onAuthError)
+                onAuthComplete()
                 Log.d(TAG, "Destroying WebView after auth complete")
                 view.destroy()
             }
