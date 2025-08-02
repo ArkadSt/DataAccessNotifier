@@ -1,8 +1,9 @@
-package com.arkadst.dataaccessnotifier
+package com.arkadst.dataaccessnotifier.auth
 
 import android.content.Context
 import android.util.Log
-import androidx.datastore.preferences.core.edit
+import com.arkadst.dataaccessnotifier.userInfoDataStore
+import com.arkadst.dataaccessnotifier.user_info.UserInfoManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,24 +16,11 @@ object LoginStateRepository {
     private val _isLoggedIn = MutableStateFlow(false)
     val isLoggedIn: StateFlow<Boolean> get() = _isLoggedIn
 
-//    fun init(context: Context) {
-//        CoroutineScope(Dispatchers.IO).launch {
-//            context.cookieDataStore.data
-//                .map { prefs ->
-//                    val isEmpty = prefs.asMap().isEmpty()
-//                    Log.d(TAG, "Cookies empty: $isEmpty")
-//                    !isEmpty
-//                }.collect { loggedIn ->
-//                    Log.d(TAG, "Setting logged in to: $loggedIn")
-//                    _isLoggedIn.value = loggedIn }
-//        }
-//    }
-
     fun init(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             context.userInfoDataStore.data
-                .map { prefs ->
-                    val isLoggedIn = prefs[LOGGED_IN_KEY] ?: false
+                .map { userInfo ->
+                    val isLoggedIn = userInfo.loggedIn
                     Log.d(TAG, "Logged in state: $isLoggedIn")
                     isLoggedIn
                 }.collect { loggedIn ->
@@ -44,8 +32,6 @@ object LoginStateRepository {
 
     suspend fun setLoggedIn(context: Context, isLoggedIn: Boolean) {
         Log.d(TAG, "Setting logged in to: $isLoggedIn")
-        context.userInfoDataStore.edit { prefs ->
-            prefs[LOGGED_IN_KEY] = isLoggedIn
-        }
+        UserInfoManager.setLoggedIn(context, isLoggedIn)
     }
 }

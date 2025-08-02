@@ -1,44 +1,40 @@
 package com.arkadst.dataaccessnotifier.access_logs
 
 import android.content.Context
+import android.util.Log
 import com.arkadst.dataaccessnotifier.AccessLogsProto
 import com.arkadst.dataaccessnotifier.LogEntryProto
+import com.arkadst.dataaccessnotifier.NotificationManager.showAccessLogNotification
 import com.arkadst.dataaccessnotifier.accessLogsDataStore
+import com.arkadst.dataaccessnotifier.user_info.UserInfoManager
 import kotlinx.coroutines.flow.first
+
+private const val TAG = "StoredAccessLogManager"
 
 object StoredAccessLogManager {
 
-    suspend fun addAccessLog(context: Context, logEntry: LogEntryProto) {
+    /**
+     * Adds new entries to the persistent store and returns entries which have been successfully added, i.e. where not previously persisted.
+     */
+    suspend fun addAccessLogs(context: Context, logEntries: Collection<LogEntryProto>) : Collection<LogEntryProto> {
+        val newEntries = logEntries.toMutableSet();
         context.accessLogsDataStore.updateData { currentLogs ->
-            val existingHashes = currentLogs.entriesList.map { it.contentHash }.toSet()
-
-            val builder = currentLogs.toBuilder()
-            if (!existingHashes.contains(logEntry.contentHash)) {
-                builder.addEntries(logEntry)
+            newEntries.removeAll(currentLogs.entriesList.toSet());
+            if (newEntries.isEmpty()) {
+                Log.d(TAG, "No new access log entries")
+                currentLogs
+            } else {
+                Log.d(TAG, "${newEntries.size} new access log entries")
+                // Notify user about new access log entries
+                if (!UserInfoManager.isFirstUse(context)) {
+                    newEntries.forEach { entryProto ->
+                        showAccessLogNotification(context, entryProto)
+                    }
+                }
+                UserInfoManager.setFirstUse(context, false)
+                currentLogs.toBuilder().addAllEntries(newEntries).build()
             }
-
-            builder.build()
         }
-    }
-
-    suspend fun hasAccessLog(context: Context, logEntry: LogEntryProto): Boolean {
-        val logs = context.accessLogsDataStore.data.first()
-        return logs.entriesList.any { it.contentHash == logEntry.contentHash }
-    }
-
-    suspend fun getAllAccessLogs(context: Context): List<LogEntryProto> {
-        val logs = context.accessLogsDataStore.data.first()
-        return logs.entriesList.sortedByDescending { it.timestamp }
-    }
-
-    suspend fun clearAccessLogs(context: Context) {
-        context.accessLogsDataStore.updateData {
-            AccessLogsProto.getDefaultInstance()
-        }
-    }
-
-    suspend fun getAccessLogCount(context: Context): Int {
-        val logs = context.accessLogsDataStore.data.first()
-        return logs.entriesCount
+        return newEntries
     }
 }

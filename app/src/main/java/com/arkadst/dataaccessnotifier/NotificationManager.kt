@@ -11,6 +11,8 @@ import android.os.Build
 import androidx.activity.result.ActivityResultLauncher
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.arkadst.dataaccessnotifier.access_logs.LogEntryManager
+import com.arkadst.dataaccessnotifier.core.Constants.ACTION_TRIGGER_LOGIN
 
 object NotificationManager {
 
@@ -54,7 +56,7 @@ object NotificationManager {
 
         // Create intent to trigger login flow
         val intent = Intent(context, MainActivity::class.java).apply {
-            action = "TRIGGER_LOGIN"
+            action = ACTION_TRIGGER_LOGIN
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
 
