@@ -59,29 +59,25 @@ object Utils {
 
                 val request = okhttp3.Request.Builder()
                     .url(url)
-                    .addHeader(
-                        "User-Agent",
-                        "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
-                    )
                     .build()
 
-                val response: Response = client.newCall(request).execute()
-
-                if (response.code !in 500..599) {
-                    Log.d(TAG, "Saving ${cookieJar.cookieBuffer.size} cookies")
-                    context.cookieDataStore.edit { prefs ->
-                        cookieJar.cookieBuffer.forEach { (key, value) ->
-                            prefs[key] = value
+                client.newCall(request).execute().use { response ->
+                    if (response.code !in 500..599) {
+                        Log.d(TAG, "Saving ${cookieJar.cookieBuffer.size} cookies")
+                        context.cookieDataStore.edit { prefs ->
+                            cookieJar.cookieBuffer.forEach { (key, value) ->
+                                prefs[key] = value
+                            }
                         }
                     }
+
+                    val returnValue = Pair(response.code, response.body.string())
+                    Log.d(TAG, "API Response Code: ${returnValue.first}")
+                    Log.d(TAG, "API Response: ${returnValue.second}")
+
+                    return@withContext returnValue
                 }
 
-                val returnValue = Pair(response.code, response.body.string())
-                Log.d(TAG, "API Response Code: ${returnValue.first}")
-                Log.d(TAG, "API Response: ${returnValue.second}")
-                response.close()
-
-                return@withContext returnValue
             } catch (ex: IOException) {
                 Log.e(TAG, "Error during API request: ${ex.message}")
                 delay(TimeUnit.SECONDS.toMillis(10))
