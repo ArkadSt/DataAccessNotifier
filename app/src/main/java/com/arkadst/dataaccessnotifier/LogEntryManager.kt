@@ -2,33 +2,40 @@ package com.arkadst.dataaccessnotifier
 
 import android.content.Context
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.serializer
 import java.text.SimpleDateFormat
 import java.util.*
 
-object LogEntryManager {
-    private const val TAG = "LogEntryManager"
+@Serializable
+data class LogEntryJson(
+    val logTime: String = "",
+    val receiver: String = "",
+    val infoSystemCode: String = "",
+    val action: String = ""
+)
 
+object LogEntryManager {
     /**
      * Parse a JSON element into a LogEntryProto
      */
     fun parseLogEntry(logElement: JsonElement): LogEntryProto {
-        val jsonObject = logElement.jsonObject
+        val logEntryJson = Json.decodeFromJsonElement(serializer<LogEntryJson>(), logElement)
 
-        val timestamp = jsonObject["logTime"]?.jsonPrimitive?.content ?: ""
-        val receiver = jsonObject["receiver"]?.jsonPrimitive?.content ?: ""
-        val infoSystem = jsonObject["infoSystemCode"]?.jsonPrimitive?.content ?: ""
-        val action = jsonObject["action"]?.jsonPrimitive?.content ?: ""
-
-        val hash = generateContentHash(timestamp, receiver, infoSystem, action)
+        val hash = generateContentHash(
+            logEntryJson.logTime,
+            logEntryJson.receiver,
+            logEntryJson.infoSystemCode,
+            logEntryJson.action
+        )
 
         return LogEntryProto.newBuilder()
-            .setTimestamp(timestamp)
-            .setReceiver(receiver)
-            .setInfoSystem(infoSystem)
-            .setAction(action)
+            .setTimestamp(logEntryJson.logTime)
+            .setReceiver(logEntryJson.receiver)
+            .setInfoSystem(logEntryJson.infoSystemCode)
+            .setAction(logEntryJson.action)
             .setContentHash(hash)
             .build()
     }

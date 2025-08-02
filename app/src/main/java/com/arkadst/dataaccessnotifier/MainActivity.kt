@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.arkadst.dataaccessnotifier.ui.theme.DataAccessNotifierTheme
 import com.arkadst.dataaccessnotifier.Utils.fetchUserInfo
-import com.arkadst.dataaccessnotifier.Utils.getURL
 import kotlinx.coroutines.launch
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -234,8 +233,8 @@ class MainActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
 
         val firstNameFlow = remember {
-            context.userInfoDataStore.data.map { preferences ->
-                preferences[FIRST_NAME_KEY] ?: ""
+            context.userInfoDataStore.data.map { userInfo ->
+                userInfo.firstName
             }
         }
         val firstName by firstNameFlow.collectAsState(initial = "")
@@ -271,20 +270,6 @@ class MainActivity : ComponentActivity() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Test API button - smaller and moved to header
-                    // Comment out the test button since it's for testing only
-                    /*
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                getURL(context, API_TEST_URL)
-                            }
-                        }
-                    ) {
-                        Text(text = "Test", style = MaterialTheme.typography.bodySmall)
-                    }
-                    */
-
                     Button(onClick = onLogout) {
                         Text(text = "Log out")
                     }

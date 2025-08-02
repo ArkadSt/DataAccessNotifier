@@ -8,6 +8,7 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import com.arkadst.dataaccessnotifier.RETRIES_KEY
+import java.util.concurrent.TimeUnit
 
 private const val TAG = "AlarmScheduler"
 object AlarmScheduler {
@@ -45,7 +46,7 @@ object AlarmScheduler {
         }
         return false
     }
-    fun scheduleNextRefresh(context: Context, interval: Long = 5 * 60 * 1000L, retries: Int = 5) {
+    fun scheduleNextRefresh(context: Context, interval: Long = TimeUnit.MINUTES.toMillis(5), retries: Int = 5) {
         if (retries <= 0) {
             Log.w(TAG, "No retries left, not scheduling next refresh")
             return
@@ -74,7 +75,7 @@ object AlarmScheduler {
         pendingIntent.cancel()
     }
 
-    fun ensureAlarmScheduled(context: Context, interval: Long = 60 * 1000L) {
+    fun ensureAlarmScheduled(context: Context, interval: Long = TimeUnit.MINUTES.toMillis(1)) {
         if (isAlarmSet(context)) {
             Log.d(TAG, "Alarm already scheduled")
         } else {

@@ -5,29 +5,23 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.arkadst.dataaccessnotifier.NotificationManager.showAccessLogNotification
 import com.arkadst.dataaccessnotifier.Utils.getURL
-import com.arkadst.dataaccessnotifier.Utils.isFirstUse
 import com.arkadst.dataaccessnotifier.Utils.logOut
-import com.arkadst.dataaccessnotifier.Utils.setFirstUse
 import com.arkadst.dataaccessnotifier.access_logs.StoredAccessLogManager
+import com.arkadst.dataaccessnotifier.user_info.UserInfoManager
 import com.arkadst.dataaccessnotifier.alarm.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
-
+import java.util.concurrent.TimeUnit
 
 private const val CHANNEL_ID = "JwtExtensionChannel"
 private const val NOTIFICATION_ID = 1
@@ -69,7 +63,7 @@ class ForegroundServiceMain: Service() {
             }
             500 -> {
                 Log.e(TAG, "JWT extension failed: 500 Internal Server Error. Retrying in 30 seconds.")
-                AlarmScheduler.scheduleNextRefresh(applicationContext, 30 * 1000L, retries-1)
+                AlarmScheduler.scheduleNextRefresh(applicationContext, TimeUnit.SECONDS.toMillis(30), retries-1)
             }
             else -> {
                 Log.e(TAG, "JWT extension failed: $responseCode")
@@ -97,15 +91,14 @@ class ForegroundServiceMain: Service() {
             }
     }
 
-    private suspend fun parseDataTrackerResponseBody(body: String) : List<JsonElement> {
+    private suspend fun parseDataTrackerResponseBody(body: String) : List<LogEntryProto> {
         // Implement your parsing logic here
         parseToJsonElement(body).let { jsonElement : JsonElement ->
             jsonElement.jsonObject["findUsageResponses"]?.let { entries ->
                 if (entries is JsonArray) {
-                    return entries.filterNot { entry : JsonElement ->
-                        val personalCode : String = applicationContext.userInfoDataStore.data.first().asMap()[PERSONAL_CODE_KEY]?.toString()!!
-                        val receiver = entry.jsonObject["receiver"]?.toString()
-                        receiver?.contains(personalCode) == true
+                    return LogEntryManager.parseLogEntries(entries).filterNot { entry : LogEntryProto ->
+                        val userInfo = UserInfoManager.getUserInfo(applicationContext)
+                        entry.receiver.contains(userInfo.personalCode)
                     }
                 } else {
                     Log.e(TAG, "Expected JsonArray but got ${entries.javaClass}")
@@ -115,12 +108,10 @@ class ForegroundServiceMain: Service() {
         return emptyList()
     }
 
-    private suspend fun handleParsedEntries(entries: List<JsonElement>) {
-        // Use LogEntryManager to parse entries into LogEntryProto objects
-        val parsedEntries = LogEntryManager.parseLogEntries(entries)
+    private suspend fun handleParsedEntries(entries: List<LogEntryProto>) {
 
         // Filter out entries that already exist using LogEntryProto objects
-        val newEntries = parsedEntries.filterNot { entry ->
+        val newEntries = entries.filterNot { entry ->
             StoredAccessLogManager.hasAccessLog(applicationContext, entry)
         }
 
@@ -135,8 +126,8 @@ class ForegroundServiceMain: Service() {
             Log.d(TAG, "New entries found: ${newEntries.size}")
         }
 
-        if (isFirstUse(applicationContext)) {
-            setFirstUse(applicationContext, false)
+        if (UserInfoManager.isFirstUse(applicationContext)) {
+            UserInfoManager.setFirstUse(applicationContext, false)
         } else {
             Log.d(TAG, "Not first use, showing notifications for ${newEntries.size} new entries")
             // Directly use LogEntryProto objects for notifications
