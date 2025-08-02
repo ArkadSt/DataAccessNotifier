@@ -1,6 +1,7 @@
 package com.arkadst.dataaccessnotifier.access_logs
 
 import android.content.Context
+import android.util.Log
 import com.arkadst.dataaccessnotifier.LogEntryProto
 import com.arkadst.dataaccessnotifier.accessLogsDataStore
 import kotlinx.coroutines.flow.map
@@ -8,6 +9,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
+import java.text.DateFormat
+import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -62,10 +65,14 @@ object LogEntryManager {
     fun formatDisplayTime(timestamp: String): String {
         return try {
             val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            val outputFormat = SimpleDateFormat("dd.MM.yyyy, HH:mm", Locale.getDefault())
             val date = inputFormat.parse(timestamp)
-            date?.let { outputFormat.format(it) } ?: timestamp
-        } catch (_: Exception) {
+            date?.let {
+                val dateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM, Locale.getDefault())
+                val timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.getDefault())
+                "${dateFormat.format(it)}, ${timeFormat.format(it)}"
+            } ?: timestamp
+        } catch (e: ParseException) {
+            Log.w("LogEntryManager", "Failed to parse timestamp: $timestamp", e)
             timestamp
         }
     }
