@@ -99,14 +99,12 @@ jobs:
 
     - name: Upload APK to Release
       if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: app/release/DataAccessNotifier-${{ steps.get_version.outputs.version }}.apk
-        asset_name: DataAccessNotifier-${{ steps.get_version.outputs.version }}.apk
-        asset_content_type: application/vnd.android.package-archive
+      run: |
+        gh release upload ${{ github.ref_name }} \
+          app/release/DataAccessNotifier-${{ steps.get_version.outputs.version }}.apk \
+          --clobber
 
     - name: Upload APK as artifact
       if: github.event_name == 'workflow_dispatch'
