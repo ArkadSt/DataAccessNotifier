@@ -77,13 +77,10 @@ class ForegroundServiceMain: Service() {
 
     private suspend fun pollDataTracker() : Boolean {
 
-            val response = getURL(applicationContext, DATA_TRACKER_API_URL)
-            val statusCode = response.first
+            val (statusCode, body) = getURL(applicationContext, DATA_TRACKER_API_URL)
             if (statusCode == 200) {
-                response.second.let { body ->
-                    Log.d(TAG, "Data tracker response: $body")
-                    handleParsedEntries(parseDataTrackerResponseBody(body))
-                }
+                Log.d(TAG, "Data tracker response: $body")
+                handleParsedEntries(parseDataTrackerResponseBody(body))
                 return true
             } else {
                 Log.e(TAG, "Data tracker API call failed: $statusCode")
