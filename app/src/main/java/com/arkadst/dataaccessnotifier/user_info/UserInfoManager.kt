@@ -2,6 +2,7 @@ package com.arkadst.dataaccessnotifier.user_info
 
 import android.content.Context
 import android.util.Log
+import android.webkit.CookieManager
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -9,8 +10,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.serializer
 import com.arkadst.dataaccessnotifier.userInfoDataStore
 import com.arkadst.dataaccessnotifier.UserInfoProto
-import com.arkadst.dataaccessnotifier.Utils.getURL
 import kotlinx.serialization.json.Json.Default.parseToJsonElement
+import kotlin.io.encoding.Base64
 
 @Serializable
 data class UserInfoJson(
@@ -20,25 +21,39 @@ data class UserInfoJson(
 
 object UserInfoManager {
 
-    suspend fun fetchUserInfo(context: Context) {
-        try {
-            val response = getURL(context, "https://www.eesti.ee/api/xroad/v2/rr/kodanik/info")
-            val body: String = response.second
-            Log.d("UserInfo", "Response Body: $body")
+    private val jsonHandler = Json{ignoreUnknownKeys = true}
+    suspend fun extractUserInfo(context: Context) {
+        val cookieManager: CookieManager = CookieManager.getInstance()
+        val cookieString = cookieManager.getCookie("https://www.eesti.ee/")
 
-            parseAndSaveUserInfo(context, parseToJsonElement(body))
-            setFirstUse(context, true)
-        } catch (e: Exception) {
-            Log.e("UserInfo", "Failed to fetch user info: ${e.message}", e)
+        val token = extractJwtToken(cookieString)
+
+        val chunks = token!!.split(".")
+        val payload = Base64.Default.decode(chunks[1]).decodeToString()
+        parseAndSaveUserInfo(context, parseToJsonElement(payload))
+        setFirstUse(context)
+    }
+
+    /**
+     * Extract JWT token from cookie string
+     */
+    private fun extractJwtToken(cookieString: String?): String? {
+        if (cookieString.isNullOrEmpty()) {
+            return null
         }
+
+        return cookieString.split(";")
+            .map { it.trim() }
+            .find { it.startsWith("JWTTOKEN=") }
+            ?.substringAfter("JWTTOKEN=")
     }
 
     /**
      * Parse user info from JsonElement and update the proto data store
      */
-    suspend fun parseAndSaveUserInfo(context: Context, jsonElement: JsonElement) {
+    private suspend fun parseAndSaveUserInfo(context: Context, jsonElement: JsonElement) {
         try {
-            val userInfoJson = Json { ignoreUnknownKeys = true }.decodeFromJsonElement(serializer<UserInfoJson>(), jsonElement)
+            val userInfoJson = jsonHandler.decodeFromJsonElement(serializer<UserInfoJson>(), jsonElement)
             saveUserInfo(context, userInfoJson)
         } catch (e: Exception) {
             Log.e("UserInfoManager", "Failed to parse user info JsonElement: ${e.message}", e)
@@ -53,7 +68,7 @@ object UserInfoManager {
             val builder = currentUserInfo.toBuilder()
 
             // Clean and process personal code
-            val cleanPersonalCode = userInfoJson.personalCode.cleanJsonString().removePrefix("EE")
+            val cleanPersonalCode = userInfoJson.personalCode.removePrefix("EE")
             if (cleanPersonalCode.isNotEmpty()) {
                 builder.personalCode = cleanPersonalCode
                 Log.d("UserInfoManager", "Saved personal code: $cleanPersonalCode")
@@ -62,7 +77,7 @@ object UserInfoManager {
             }
 
             // Clean and process first name
-            val cleanFirstName = userInfoJson.firstName.cleanJsonString()
+            val cleanFirstName = userInfoJson.firstName
             if (cleanFirstName.isNotEmpty()) {
                 builder.firstName = cleanFirstName
                 Log.d("UserInfoManager", "Saved first name: $cleanFirstName")
@@ -71,6 +86,21 @@ object UserInfoManager {
             }
 
             builder.build()
+        }
+    }
+
+    /**
+     * Set first use flag to true if unset.
+     */
+    suspend fun setFirstUse(context: Context) {
+        context.userInfoDataStore.updateData { currentUserInfo ->
+            if (currentUserInfo.hasFirstUse()) {
+                Log.d("UserInfoManager", "First use already set, skipping update")
+                return@updateData currentUserInfo
+            }
+            currentUserInfo.toBuilder()
+                .setFirstUse(true)
+                .build()
         }
     }
 
@@ -108,12 +138,5 @@ object UserInfoManager {
      */
     suspend fun getUserInfo(context: Context): UserInfoProto {
         return context.userInfoDataStore.data.first()
-    }
-
-    /**
-     * Clean JSON string by removing quotes and trimming
-     */
-    private fun String.cleanJsonString(): String {
-        return this.replace("\"", "").trim()
     }
 }

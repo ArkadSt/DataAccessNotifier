@@ -6,6 +6,6 @@ option java_multiple_files = true;
 message UserInfoProto {
   string personal_code = 1;
   string first_name = 2;
-  bool first_use = 3;
+  optional bool first_use = 3;
   bool logged_in = 4;
 }

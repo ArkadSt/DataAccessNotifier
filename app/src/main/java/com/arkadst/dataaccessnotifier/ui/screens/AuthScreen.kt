@@ -61,7 +61,7 @@ fun AuthScreen() {
                     modifier = Modifier.padding(innerPadding),
                     onAuthComplete = {
                         scope.launch {
-                            UserInfoManager.fetchUserInfo(context)
+                            UserInfoManager.extractUserInfo(context)
                             loggingIn = false
                             LoginStateRepository.setLoggedIn(context, true)
                             Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
