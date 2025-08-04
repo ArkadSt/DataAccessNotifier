@@ -16,10 +16,10 @@ import java.util.*
 
 @Serializable
 data class LogEntryJson(
-    val logTime: String = "",
-    val receiver: String = "",
-    val infoSystemCode: String = "",
-    val action: String = ""
+    val logTime: String? = null,
+    val receiver: String? = null,
+    val infoSystemCode: String? = null,
+    val action: String? = null
 )
 
 object LogEntryManager {
@@ -29,12 +29,15 @@ object LogEntryManager {
     fun parseLogEntry(logElement: JsonElement): LogEntryProto {
         val logEntryJson = Json.decodeFromJsonElement(serializer<LogEntryJson>(), logElement)
 
-        return LogEntryProto.newBuilder()
-            .setTimestamp(logEntryJson.logTime)
-            .setReceiver(logEntryJson.receiver)
-            .setInfoSystem(logEntryJson.infoSystemCode)
-            .setAction(logEntryJson.action)
-            .build()
+        val builder = LogEntryProto.newBuilder()
+
+        // Only set fields if they're not null
+        logEntryJson.logTime?.let { builder.setTimestamp(it) }
+        logEntryJson.receiver?.let { builder.setReceiver(it) }
+        logEntryJson.infoSystemCode?.let { builder.setInfoSystem(it) }
+        logEntryJson.action?.let { builder.setAction(it) }
+
+        return builder.build()
     }
 
     /**

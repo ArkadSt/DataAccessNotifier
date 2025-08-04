@@ -27,11 +27,35 @@ object UserInfoManager {
         val cookieString = cookieManager.getCookie("https://www.eesti.ee/")
 
         val token = extractJwtToken(cookieString)
+        if (token == null) {
+            Log.e("UserInfoManager", "JWT token not found in cookies")
+            return
+        }
 
-        val chunks = token!!.split(".")
-        val payload = Base64.Default.decode(chunks[1]).decodeToString()
-        parseAndSaveUserInfo(context, parseToJsonElement(payload))
-        setFirstUse(context)
+        try {
+            val chunks = token.split(".")
+            if (chunks.size != 3) {
+                Log.e("UserInfoManager", "Invalid JWT token format")
+                return
+            }
+
+            val payload = decodeJwtPayload(chunks[1])
+            parseAndSaveUserInfo(context, parseToJsonElement(payload))
+            setFirstUse(context)
+        } catch (e: Exception) {
+            Log.e("UserInfoManager", "Failed to extract user info from JWT: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Decode JWT payload with proper Base64 URL-safe decoding and padding
+     */
+    private fun decodeJwtPayload(encodedPayload: String): String {
+        // JWT uses Base64 URL-safe encoding without padding
+        // Use ABSENT_OPTIONAL to handle missing padding automatically
+        return Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
+            .decode(encodedPayload)
+            .decodeToString()
     }
 
     /**
